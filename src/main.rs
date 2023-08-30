@@ -1,10 +1,12 @@
 use std::fs;
 
+mod token;
 
 fn main() {
-    let contents = fs::read_to_string("src/test.alo")
-        .expect("Unable to open file");
+    let data = fs::read_to_string("test.alo")
+        .expect("Unable to read file");
     
+    let tokens = token::tokenize(&mut data.chars()).unwrap();
 
-    println!("Hello, world! {:?}", contents);
+    println!("Finished tokenising {:?}", tokens);
 }
