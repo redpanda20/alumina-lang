@@ -3,12 +3,5 @@
 version = 3
 
 [[package]]
-name = "char_reader"
-version = "0.1.0"
-
-[[package]]
 name = "lang-compiler"
 version = "0.1.0"
-dependencies = [
- "char_reader",
-]
