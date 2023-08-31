@@ -1,6 +1,7 @@
-use std::io::{Read, BufReader};
+use std::io;
 use std::iter::Peekable;
-use std::str::Chars;
+
+use char_reader::CharReader;
 
 #[derive(Debug, Clone)]
 pub enum Token {
@@ -31,18 +32,16 @@ impl From<std::io::Error> for LexerError {
     }
 }
 
-pub struct TokenLexer<'a> {
-    input: Peekable<Chars<'a>>,
+pub struct TokenLexer<R: io::Read> {
+    input: Peekable<CharReader<R>>,
     tokens: Vec<Token>
 }
 
-impl TokenLexer<'_> {
-    pub fn parse<R: Read>(mut reader: BufReader<R>) -> Result<Vec<Token>, LexerError> {
+impl <R: io::Read>TokenLexer<R> {
+    pub fn parse(reader: R) -> Result<Vec<Token>, LexerError> {
 
-        let mut string = String::new();
-        reader.read_to_string(&mut string)?;
-
-        let input = string.chars().peekable();
+        let input = CharReader::new(reader)
+            .into_iter().peekable();
 
         let mut lexer = TokenLexer {
             input,

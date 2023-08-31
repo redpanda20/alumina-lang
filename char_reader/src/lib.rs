@@ -2,9 +2,8 @@
 
 use std::io;
 use std::str;
-
 #[derive(Debug)]
-enum CharReaderError {
+pub enum CharReaderError {
     IOError(std::io::Error),
     ReachedEOF,
 
@@ -20,7 +19,7 @@ impl From<str::Utf8Error> for CharReaderError {
     }
 }
 
-struct CharReader<R: io::Read> {
+pub struct CharReader<R: io::Read> {
 	inner: R,
 	buf: Box<[u8]>,
     pos: usize, // Left side
@@ -60,6 +59,15 @@ impl <R: io::Read> CharReader<R> {
 
         self.pos += char.len_utf8();
         Ok(char)
+    }
+
+}
+
+impl <R: io::Read> Iterator for CharReader<R> {
+    type Item = char;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_char().ok()
     }
 }
 
