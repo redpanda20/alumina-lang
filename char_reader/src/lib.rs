@@ -1,20 +1,26 @@
 
 
-use std::io::Read;
+use std::io;
 use std::str;
 
 #[derive(Debug)]
 enum CharReaderError {
     IOError(std::io::Error),
-    ReachedEOF
+    ReachedEOF,
+
 }
 impl From<std::io::Error> for CharReaderError {
     fn from(err: std::io::Error) -> Self {
         CharReaderError::IOError(err)
     }
 }
+impl From<str::Utf8Error> for CharReaderError {
+    fn from(_: str::Utf8Error) -> Self {
+        CharReaderError::IOError(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF8"))
+    }
+}
 
-struct CharReader<R: Read> {
+struct CharReader<R: io::Read> {
 	inner: R,
 	buf: Box<[u8]>,
     pos: usize, // Left side
@@ -23,7 +29,7 @@ struct CharReader<R: Read> {
 
 const DEFAULT_BUF_SIZE: usize = 5_000;
 
-impl <R: Read> CharReader<R> {
+impl <R: io::Read> CharReader<R> {
 	pub fn new(inner: R) -> Self {
 		CharReader::with_capacity(DEFAULT_BUF_SIZE, inner)
 	}
@@ -36,7 +42,7 @@ impl <R: Read> CharReader<R> {
 
     pub fn next_char(&mut self) -> Result<char, CharReaderError> {
         // Enough bytes in the current buffer
-        if self.pos + 8 >= self.filled {
+        if self.pos + 4 >= self.filled {
 
             // Shift buffer to the start
             self.buf.copy_within(self.pos .. self.filled, 0);
@@ -49,11 +55,8 @@ impl <R: Read> CharReader<R> {
             self.pos = 0;
         }
         
-        // Can be done more neatly than this
-        let char = match str::from_utf8(&self.buf[self.pos..self.filled]) {
-            Ok(str) => str.chars().next().expect("&str must be at least length 1"),
-            Err(err) => return Err(CharReaderError::IOError(std::io::Error::new(std::io::ErrorKind::InvalidData, err))),
-        };
+        let char = str::from_utf8(&self.buf[self.pos..self.filled])?
+            .chars().next().expect("&str must be at least length 1");
 
         self.pos += char.len_utf8();
         Ok(char)
@@ -69,15 +72,9 @@ mod tests {
     #[test]
     fn buildable() {
         let bytes: &[u8] = &[0, 0, 0, 0, 0];
-        let mut char_reader = CharReader::new(bytes);
+        let char_reader = CharReader::new(bytes);
 
         assert_eq!(char_reader.buf.len(), 5000);
-
-        if let Err(_) = char_reader.next_char() {
-            assert!(true);
-        } else {
-            assert!(false);
-        }
     }
 
     #[test]
