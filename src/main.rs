@@ -1,4 +1,6 @@
-use std::{fs, process::Command};
+use std::{fs::{self, File}, process::Command, io::BufReader};
+
+use token::TokenLexer;
 
 mod token;
 
@@ -17,10 +19,21 @@ fn main() {
     //     .expect("Unable to read file");
     
     // let tokens = token::tokenize(&mut data.chars()).unwrap();
+    let file = File::open("test.alo")
+        .expect("Unable to open file");
+
+    let tokens = TokenLexer::parse(BufReader::new(file))
+        .expect("Error lexing file");
+
+    println!("Tokens {:?}", tokens);
 
     /* Code generator */
     let code = codegen();
+    
+    createExecutable(code);
+}
 
+fn createExecutable(code: String) {
     /* Write to file */
     fs::create_dir_all("build").unwrap();
     fs::write("build/output.asm", code)

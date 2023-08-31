@@ -1,49 +1,132 @@
-use std::num::ParseIntError;
-
+use std::io::{Read, BufReader};
+use std::iter::Peekable;
+use std::str::Chars;
 
 #[derive(Debug, Clone)]
 pub enum Token {
     Return,
     Let,
+    Literal(String),
     IntLiteral(u32),
-    Eq
+    Eq,
+    LParen,
+    RParen
 }
 
-#[derive(Debug, Clone)]
-pub enum TokenizerError {
-    IntParse(std::num::ParseIntError)
+#[derive(Debug)]
+pub enum LexerError {
+    IntParse(std::num::ParseIntError),
+    IOError(std::io::Error),
+    UnexpectedCharacter(char),
+    EndOfInput
 }
-impl From<ParseIntError> for TokenizerError {
-    fn from(err: ParseIntError) -> TokenizerError {
-        TokenizerError::IntParse(err)
+impl From<std::num::ParseIntError> for LexerError {
+    fn from(err: std::num::ParseIntError) -> LexerError {
+        LexerError::IntParse(err)
+    }
+}
+impl From<std::io::Error> for LexerError {
+    fn from(err: std::io::Error) -> Self {
+        LexerError::IOError(err)
     }
 }
 
+pub struct TokenLexer<'a> {
+    input: Peekable<Chars<'a>>,
+    tokens: Vec<Token>
+}
 
-pub fn tokenize(input: &mut impl Iterator<Item = char>) -> Result<Vec<Token>, TokenizerError> {
-    let mut tokens = Vec::new();
+impl TokenLexer<'_> {
+    pub fn parse<R: Read>(mut reader: BufReader<R>) -> Result<Vec<Token>, LexerError> {
 
-    while let Some(char) = input.next() {
-        match char {
-            '=' => tokens.push(Token::Eq),
-            t if t.is_numeric() => {
-                let mut num = t.to_string();
-                input.take_while(|c| c.is_numeric())
-                    .for_each(|ch| num.push(ch));
-                tokens.push(Token::IntLiteral(num.parse::<u32>()?))
-            },
-            t if t.is_alphabetic() => {
-                let mut literal = t.to_string();
-                input.take_while(|c| c.is_alphanumeric())
-                    .for_each(|ch| literal.push(ch));
-                match literal.as_str() {
-                    "return" => tokens.push(Token::Return),
-                    "let" => tokens.push(Token::Let),
-                    _ => { println!("{}", literal) }
-                }
+        let mut string = String::new();
+        reader.read_to_string(&mut string)?;
+
+        let input = string.chars().peekable();
+
+        let mut lexer = TokenLexer {
+            input,
+            tokens: Vec::new()
+        };
+
+        loop {
+            match lexer.parse_token() {
+                Ok(_) => (),
+                Err(LexerError::EndOfInput) => break,
+                Err(err) => return Err(err)
             }
-            _ => {} // Whitespace and other weird characters
         }
+
+        Ok(lexer.tokens)
     }
-    return Ok(tokens);
+
+
+    fn parse_token(&mut self) -> Result<(), LexerError> {
+        match self.input.peek() {
+            Some('=') => {
+                self.tokens.push(Token::Eq);
+                self.input.next();
+            },
+            Some('(') => {
+                self.tokens.push(Token::LParen);
+                self.input.next();
+            },
+            Some(')') => {
+                self.tokens.push(Token::RParen);
+                self.input.next();
+            },
+            Some(ch) if ch.is_numeric() => {
+                self.parse_int()?;
+            },
+            Some(ch) if ch.is_alphabetic() => {
+                self.parse_literal()?;
+            },
+            Some(ch) if ch.is_whitespace() => {
+                self.input.next();
+            }
+            Some(ch) => return Err(LexerError::UnexpectedCharacter(*ch)),
+            None => return Err(LexerError::EndOfInput)
+        }
+
+        Ok(())
+    }
+
+    fn parse_int(&mut self) -> Result<(), LexerError> {
+        let mut num = String::new();
+        loop {
+            match self.input.peek() {
+                Some(ch) if ch.is_numeric() => {
+                    num.push(*ch);
+                    self.input.next();
+                },
+                Some(_) | None => break
+            }
+        }
+
+        self.tokens.push(Token::IntLiteral(num.parse::<u32>()?));
+
+        Ok(())
+    }
+
+    fn parse_literal(&mut self) -> Result<(), LexerError> {
+        let mut literal = String::new();
+        loop {
+            match self.input.peek() {
+                Some(ch) if ch.is_alphanumeric() => {
+                    literal.push(*ch);
+                    self.input.next();
+                },
+                Some(_) | None => break
+            }
+        }
+
+        match literal.as_str() {
+            "return" => self.tokens.push(Token::Return),
+            "let" => self.tokens.push(Token::Let),
+            _ => self.tokens.push(Token::Literal(literal))
+        };
+
+        Ok(())
+    }
+
 }
