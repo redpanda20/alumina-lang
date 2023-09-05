@@ -1,8 +1,10 @@
 use std::{fs, process::Command};
 
-use token::TokenLexer;
-
 mod token;
+use token::Lexer;
+
+mod parser;
+use parser::Parser;
 
 fn codegen() -> String {
     let mut output = String::new();
@@ -18,15 +20,18 @@ fn main() {
     let file = fs::File::open("test.alo")
         .expect("Unable to open file");
 
-    let tokens = TokenLexer::parse(file)
+    let tokens = Lexer::parse(file)
         .expect("Error lexing file");
-
     println!("Tokens {:?}", tokens);
 
+    let nodes = Parser::parse(tokens.into_iter())
+        .expect("Error while parsing tokens");
+    println!("Nodes {:?}", nodes);
+
     /* Code generator */
-    let code = codegen();
+    // let code = codegen();
     
-    create_executable(code);
+    // create_executable(code);
 }
 
 fn create_executable(code: String) {

@@ -1,2 +1,2 @@
-let a = 0
-return 69
+let a = 69 + 5 / 2
+return a

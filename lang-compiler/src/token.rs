@@ -3,13 +3,18 @@ use std::iter::Peekable;
 
 use char_reader::CharReader;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
+    Sep,
     Return,
     Let,
-    Literal(String),
+    Ident(String),
     IntLiteral(u32),
     Eq,
+    Plus,
+    Minus,
+    Star,
+    FSlash,
     LParen,
     RParen
 }
@@ -32,18 +37,18 @@ impl From<std::io::Error> for LexerError {
     }
 }
 
-pub struct TokenLexer<R: io::Read> {
+pub struct Lexer<R: io::Read> {
     input: Peekable<CharReader<R>>,
     tokens: Vec<Token>
 }
 
-impl <R: io::Read>TokenLexer<R> {
+impl <R: io::Read>Lexer<R> {
     pub fn parse(reader: R) -> Result<Vec<Token>, LexerError> {
 
         let input = CharReader::new(reader)
             .into_iter().peekable();
 
-        let mut lexer = TokenLexer {
+        let mut lexer = Lexer {
             input,
             tokens: Vec::new()
         };
@@ -66,12 +71,32 @@ impl <R: io::Read>TokenLexer<R> {
                 self.tokens.push(Token::Eq);
                 self.input.next();
             },
+            Some('+') => {
+                self.tokens.push(Token::Plus);
+                self.input.next();
+            },
+             Some('-') => {
+                self.tokens.push(Token::Minus);
+                self.input.next();
+            },
+            Some('*') => {
+                self.tokens.push(Token::Star);
+                self.input.next();
+            },
+            Some('/') => {
+                self.tokens.push(Token::FSlash);
+                self.input.next();
+            },
             Some('(') => {
                 self.tokens.push(Token::LParen);
                 self.input.next();
             },
             Some(')') => {
                 self.tokens.push(Token::RParen);
+                self.input.next();
+            },
+            Some(';') | Some('\n') => {
+                self.tokens.push(Token::Sep);
                 self.input.next();
             },
             Some(ch) if ch.is_numeric() => {
@@ -122,7 +147,7 @@ impl <R: io::Read>TokenLexer<R> {
         match literal.as_str() {
             "return" => self.tokens.push(Token::Return),
             "let" => self.tokens.push(Token::Let),
-            _ => self.tokens.push(Token::Literal(literal))
+            _ => self.tokens.push(Token::Ident(literal))
         };
 
         Ok(())
