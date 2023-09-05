@@ -1,2 +1,2 @@
-let a = 69 + 5 / 2
-return a
+let b = 2; let a = 69 + 5 / b
+exit a

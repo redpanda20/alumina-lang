@@ -1,20 +1,13 @@
 use std::{fs, process::Command};
 
-mod token;
+
+pub(crate) mod token;
+pub(crate) mod parser;
+pub(crate) mod generation;
+
 use token::Lexer;
-
-mod parser;
 use parser::Parser;
-
-fn codegen() -> String {
-    let mut output = String::new();
-    output += "global _start\n";
-    output += "_start:\n";
-	output += "mov rdi, 69\n";
-	output += "mov rax, 60\n";
-	output += "syscall\n";
-    return output;
-}
+use generation::Generator;
 
 fn main() {
     let file = fs::File::open("test.alo")
@@ -29,8 +22,10 @@ fn main() {
     println!("Nodes {:?}", nodes);
 
     /* Code generator */
-    // let code = codegen();
-    
+    let code = Generator::generate_program(nodes.into_iter())
+        .expect("Error while generating code");
+    println!("Generated code:\n{}", code);
+
     // create_executable(code);
 }
 

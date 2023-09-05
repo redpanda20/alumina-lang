@@ -6,7 +6,7 @@ use char_reader::CharReader;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Sep,
-    Return,
+    Exit,
     Let,
     Ident(String),
     IntLiteral(u32),
@@ -145,7 +145,7 @@ impl <R: io::Read>Lexer<R> {
         }
 
         match literal.as_str() {
-            "return" => self.tokens.push(Token::Return),
+            "exit" => self.tokens.push(Token::Exit),
             "let" => self.tokens.push(Token::Let),
             _ => self.tokens.push(Token::Ident(literal))
         };

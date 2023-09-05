@@ -5,9 +5,8 @@ use crate::token::Token;
 
 #[derive(Debug, Clone)]
 pub enum NodeType {
-	Function(String),
-	StmtAssign,
-	Expr,
+	StmtFunction(String),
+	StmtAssign(String),
 	ExprIdent(String),
 	ExprLiteral(u32),
 	ExprBinAdd,
@@ -18,16 +17,11 @@ pub enum NodeType {
 
 #[derive(Debug, Clone)]
 pub struct Node {
-	variant: NodeType,
-	left: Option<usize>,
-	right: Option<usize>
+	pub variant: NodeType,
+	pub left: Option<usize>,
+	pub right: Option<usize>
 }
 
-#[derive(Debug, Clone)]
-pub enum Expr {
-	ExprBin{left: Box<Expr>, right: Box<Expr>},
-	Expr
-}
 
 #[derive(Debug)]
 pub enum ParserError {
@@ -67,7 +61,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		};
 		match token {
 			Token::Let => self.parse_assignment(),
-			Token::Return => self.parse_function(),
+			Token::Exit => self.parse_function(),
 			// Token::Ident(value) => Node::Ident(*value),
 			// Token::IntLiteral(_) => todo!(),
 			// Token::Eq => Node,
@@ -83,7 +77,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		/* return <expr> */
 
 		match self.input.next() {
-			Some(Token::Return) => (),
+			Some(Token::Exit) => (),
 			 _ => return Err(ParserError::UnexpectedToken)
 		};
 
@@ -102,7 +96,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		// }
 
 		self.nodes.push(Node {
-			variant: NodeType::Function(String::from("return")),
+			variant: NodeType::StmtFunction(String::from("exit")),
 			left: Some(self.nodes.len() - 1),
 			right: None
 		});
@@ -129,18 +123,12 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 
 		self.parse_expression()?;
 
-		// Ident node
-		self.nodes.push(Node {
-			variant: NodeType::ExprIdent(ident_name),
-			left: None,
-			right: None
-		});
 
 		// Assignment node
 		self.nodes.push(Node {
-			variant: NodeType::StmtAssign,
-			left: Some(self.nodes.len() - 2),
-			right: Some(self.nodes.len() - 1)
+			variant: NodeType::StmtAssign(ident_name),
+			left: Some(self.nodes.len() - 1),
+			right: None
 		});
 
 		Ok(())
@@ -186,7 +174,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 						};
 						let right = Some(self.nodes.len() - 1);
 						let left = Some({
-							let mut index = self.nodes.len() - 2;
+							let mut index = self.nodes.len() - 1;
 							loop {
 								let Some(node) = self.nodes.get(index) else {
 									break
@@ -196,7 +184,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 									None => break,
 								}
 							}
-							index
+							index - 1
 						});
 						self.nodes.push(Node {
 							variant,
@@ -224,7 +212,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 			};
 			let right = Some(self.nodes.len() - 1);
 			let left = Some({
-				let mut index = self.nodes.len() - 2;
+				let mut index = self.nodes.len() - 1;
 				loop {
 					let Some(node) = self.nodes.get(index) else {
 						break
@@ -234,7 +222,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 						None => break,
 					}
 				}
-				index
+				index - 1
 			});
 			self.nodes.push(Node {
 				variant,
