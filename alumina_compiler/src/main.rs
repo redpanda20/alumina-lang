@@ -1,5 +1,4 @@
 use std::{fs, process, env};
-use process::Command;
 
 extern crate char_reader;
 
@@ -72,27 +71,31 @@ fn main() -> Result<(), CLIError> {
     fs::create_dir_all("build")?;
     fs::write("build/output.asm", code)?;
 
-    println!("Building binary...");
-    /*
-        Assembler
-        nasm -felf64 output.asm
-    */
-    Command::new("nasm")
-        .arg("-felf64")
-        .arg("build/output.asm")
-        .spawn()?
-        .wait()?;
-
-    /*
-        Linker
-        ld output.o -o output
-    */
-    Command::new("ld")
-        .arg("-o")
-        .arg("build/output")
-        .arg("build/output.o")
-        .spawn()?
-        .wait()?;
+    #[cfg(target_family = "unix")]
+    {
+        use process::Command;
+        println!("Building binary...");
+        /*
+            Assembler
+            nasm -felf64 output.asm
+        */
+        Command::new("nasm")
+            .arg("-felf64")
+            .arg("build/output.asm")
+            .spawn()?
+            .wait()?;
+    
+        /*
+            Linker
+            ld output.o -o output
+        */
+        Command::new("ld")
+            .arg("-o")
+            .arg("build/output")
+            .arg("build/output.o")
+            .spawn()?
+            .wait()?;    
+    }
 
     Ok(())
 }
