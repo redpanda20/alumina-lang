@@ -4,7 +4,7 @@ version = "0.2.0"
 authors = ["Alexandra Stephens <ast194@uclive.ac.nz>"]
 license = "MIT OR Apache-2.0"
 description = "Custom compiler for the Alumina (ALO) language"
-readme = "README.md"
+readme = "../README.md"
 keywords = ["cli", "compiler", "language"]
 categories = ["compilers", "command-line-utilities"]
 
