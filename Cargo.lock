@@ -3,12 +3,12 @@
 version = 3
 
 [[package]]
-name = "char_reader"
-version = "0.1.0"
-
-[[package]]
-name = "lang-compiler"
-version = "0.1.0"
+name = "alumina-compiler"
+version = "0.2.0"
 dependencies = [
  "char_reader",
 ]
+
+[[package]]
+name = "char_reader"
+version = "0.1.0"

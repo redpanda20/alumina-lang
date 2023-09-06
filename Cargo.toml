@@ -1,6 +1,6 @@
 [workspace]
 
 members = [
-	"lang-compiler",
+	"alumina_compiler",
 	"char_reader"
 ]

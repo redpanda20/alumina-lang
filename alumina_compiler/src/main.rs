@@ -1,6 +1,8 @@
 use std::{fs, process, env};
 use process::Command;
 
+extern crate char_reader;
+
 pub(crate) mod token;
 pub(crate) mod parser;
 pub(crate) mod generation;
@@ -19,7 +21,7 @@ enum CLIError {
 impl std::fmt::Debug for CLIError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NotEnoughArguments => write!(f, "usage: lang-compiler [file]"),
+            Self::NotEnoughArguments => write!(f, "usage: alumina-compiler [file]"),
             Self::IOError(arg0) => f.debug_tuple("IOError").field(arg0).finish(),
             Self::LexerError(arg0) => f.debug_tuple("LexerError").field(arg0).finish(),
             Self::ParserError(arg0) => f.debug_tuple("ParserError").field(arg0).finish(),
