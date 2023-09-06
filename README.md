@@ -3,7 +3,7 @@
 ![Image of a piece of Corundum mineral](https://upload.wikimedia.org/wikipedia/commons/1/1e/Corindon_azulEZ.jpg)
 
 ## Description
-Alumina is a hobbyist programming language. Alumina is named after the most common natural oxide of Aluminium (Al~2~O~3~)[^al2o3]. Much like its elemental inspiration Alumina is lightweight, abrasive, and refuses to catch fire. 
+Alumina is a hobbyist programming language. Alumina is named after the most common natural oxide of Aluminium (Al<sub>2</sub>O<sub>3</sub>)[^al2o3]. Much like its elemental inspiration Alumina is lightweight, abrasive, and refuses to catch fire.
 
 This project was inspired by Hydrogen language project[^hydro] and built in [Rust](https://www.rust-lang.org/).
 
