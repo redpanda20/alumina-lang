@@ -16,10 +16,33 @@ pub enum NodeType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Node {
+struct ParentNode {
 	pub variant: NodeType,
 	pub left: Option<usize>,
 	pub right: Option<usize>
+}
+
+#[derive(Debug, Clone)]
+pub struct ChildNode {
+	pub variant: NodeType,
+	pub parent: Option<usize>,
+}
+
+fn parents_to_children(vec: &Vec<ParentNode>) -> Vec<ChildNode> {
+	let mut output = Vec::with_capacity(vec.len());
+	
+	for (i, parent) in vec.iter().enumerate() {
+		let variant = parent.variant.clone();
+		output.push(ChildNode { variant, parent: None });
+
+		if let Some(index) = parent.left {
+			output.get_mut(index).unwrap().parent = Some(i);
+		}
+		if let Some(index) = parent.right {
+			output.get_mut(index).unwrap().parent = Some(i);
+		}
+	}
+	output
 }
 
 
@@ -31,11 +54,11 @@ pub enum ParserError {
 
 pub struct Parser<I: Iterator<Item = Token>> {
     input: Peekable<I>,
-    nodes: Vec<Node>
+    nodes: Vec<ParentNode>
 }
 	
 impl <I: Iterator<Item = Token>> Parser<I> {
-    pub fn parse(iterator: I) -> Result<Vec<Node>, ParserError> {
+    pub fn parse(iterator: I) -> Result<Vec<ChildNode>, ParserError> {
 
 		let input = iterator.peekable();
 
@@ -52,7 +75,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 			}
 		}
 
-		Ok(parser.nodes)
+		Ok(parents_to_children(&parser.nodes))
 	}
 
 	fn parse_node(&mut self) -> Result<(), ParserError> {
@@ -95,7 +118,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		// 	};
 		// }
 
-		self.nodes.push(Node {
+		self.nodes.push(ParentNode {
 			variant: NodeType::StmtFunction(String::from("exit")),
 			left: Some(self.nodes.len() - 1),
 			right: None
@@ -125,7 +148,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 
 
 		// Assignment node
-		self.nodes.push(Node {
+		self.nodes.push(ParentNode {
 			variant: NodeType::StmtAssign(ident_name),
 			left: Some(self.nodes.len() - 1),
 			right: None
@@ -153,10 +176,10 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		while let Some(node) = self.input.peek() {
 
 			match node {
-				Token::Ident(name) => self.nodes.push(Node {
+				Token::Ident(name) => self.nodes.push(ParentNode {
 					variant: NodeType::ExprIdent(name.to_owned()), left: None, right: None }),
 
-				Token::IntLiteral(value) => self.nodes.push(Node {
+				Token::IntLiteral(value) => self.nodes.push(ParentNode {
 					variant: NodeType::ExprLiteral(*value), left: None, right: None }),
 
 				token
@@ -186,7 +209,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 							}
 							index - 1
 						});
-						self.nodes.push(Node {
+						self.nodes.push(ParentNode {
 							variant,
 							left,
 							right
@@ -224,7 +247,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 				}
 				index - 1
 			});
-			self.nodes.push(Node {
+			self.nodes.push(ParentNode {
 				variant,
 				left,
 				right

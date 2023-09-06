@@ -9,7 +9,7 @@ _start
 
 use std::{collections::HashMap, iter::Peekable};
 
-use crate::parser::{Node, NodeType};
+use crate::parser::{ChildNode, NodeType};
 
 #[derive(Debug)]
 pub enum GeneratorError {
@@ -19,14 +19,14 @@ pub enum GeneratorError {
 	UnexpectedNode
 }
 
-pub struct Generator<I: Iterator<Item = Node>> {
+pub struct Generator<I: Iterator<Item = ChildNode>> {
 	input: Peekable<I>,
 	variables: HashMap<String, usize>,
 	stack_size: usize,
 	output: String
 }
 
-impl <I: Iterator<Item = Node>> Generator<I> {
+impl <I: Iterator<Item = ChildNode>> Generator<I> {
 	pub fn generate_program(iterator: I) -> Result<String, GeneratorError> {
 
 		let input = iterator.peekable();
@@ -35,7 +35,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 			input,
 			variables: HashMap::new(),
 			stack_size: 0,
-			output: String::from("global _start\n_start:\n"),
+			output: String::new(),
 		};
 
 		loop {
@@ -46,10 +46,12 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 			}
 		}
 
-		generator.opt();
+		generator.output = String::from("global _start\n_start:\n") + &generator.output + "mov rdi, 0\nmov rax, 60\nsyscall";
+		
+		// generator.opt();
 
-		generator.output += "mov rdi, 0\nmov rax, 60\nsyscall";
 		Ok(generator.output)
+
 	}
 
 	fn opt(&mut self) {
@@ -101,35 +103,34 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 				self.output += &format!("mov rax, {}\n", num);
 				self.push("rax");
 			},
-			NodeType::ExprBinAdd => {
-				self.pop("rbx");
-				self.pop("rax");
-				self.output += "add rax, rbx\n";
-				self.push("rax");
-			},
-			NodeType::ExprBinSub => {
-				self.pop("rbx");
-				self.pop("rax");
-				self.output += "sub rax, rbx\n";
-				self.push("rax");
-			},
-			NodeType::ExprBinMul => {
-				self.pop("rbx");
-				self.pop("rax");
-				self.output += "mul rbx\n";
-				self.push("rax");
-			},
-			NodeType::ExprBinDiv => {
-				self.pop("rbx");
-				self.pop("rax");
-				self.output += "div rbx\n";
-				self.push("rax");
-			},
+			NodeType::ExprBinAdd => self.generate_bin_expr(node)?,
+			NodeType::ExprBinSub => self.generate_bin_expr(node)?,
+			NodeType::ExprBinMul => self.generate_bin_expr(node)?,
+			NodeType::ExprBinDiv => self.generate_bin_expr(node)?,
 		}
 		Ok(())
 	}
 
-	fn generate_function(&mut self, node: Node) -> Result<(), GeneratorError> {
+	fn generate_bin_expr(&mut self, node: ChildNode) -> Result<(), GeneratorError> {
+
+		self.pop("rbx");
+		
+		self.pop("rax");
+
+		self.output += match node.variant {
+			NodeType::ExprBinAdd => "add rax, rbx\n",
+			NodeType::ExprBinSub => "sub rax, rbx\n",
+			NodeType::ExprBinMul => "mul rbx\n",
+			NodeType::ExprBinDiv => "div rbx\n",
+			_ => unreachable!()
+		};
+
+		self.push("rax");
+
+		Ok(())
+	}
+
+	fn generate_function(&mut self, node: ChildNode) -> Result<(), GeneratorError> {
 		let NodeType::StmtFunction(name) = node.variant else {
 			return Err(GeneratorError::UnexpectedNode)
 		};
