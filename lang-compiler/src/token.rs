@@ -43,7 +43,7 @@ pub struct Lexer<R: io::Read> {
 }
 
 impl <R: io::Read>Lexer<R> {
-    pub fn parse(reader: R) -> Result<Vec<Token>, LexerError> {
+    pub fn tokenize(reader: R) -> Result<Vec<Token>, LexerError> {
 
         let input = CharReader::new(reader)
             .into_iter().peekable();

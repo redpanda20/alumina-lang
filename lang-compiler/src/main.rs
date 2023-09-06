@@ -9,11 +9,12 @@ use token::Lexer;
 use parser::Parser;
 use generation::Generator;
 
+
 fn main() {
     let file = fs::File::open("test.alo")
         .expect("Unable to open file");
 
-    let tokens = Lexer::parse(file)
+    let tokens = Lexer::tokenize(file)
         .expect("Error lexing file");
     println!("Tokens {:?}", tokens);
 
@@ -26,7 +27,7 @@ fn main() {
         .expect("Error while generating code");
     println!("Generated code:\n{}", code);
 
-    // create_executable(code);
+    create_executable(code);
 }
 
 fn create_executable(code: String) {
