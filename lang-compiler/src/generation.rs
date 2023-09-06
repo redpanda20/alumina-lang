@@ -54,21 +54,6 @@ impl <I: Iterator<Item = ChildNode>> Generator<I> {
 
 	}
 
-	fn opt(&mut self) {
-		// Immediate variable usage
-		self.output = self.output.replace(
-			"push rax\nQWORD [rsp + 0]\n",
-			"");
-
-		// Direct move
-		self.output = self.output.replace(
-			"push rax\npop rbx\n",
-			"move rbx, rax\n");		
-		self.output = self.output.replace(
-			"push rax\npop rdi\n",
-			"move rdi, rax\n");	
-}
-
 	fn push(&mut self, reg: &str) {
 		self.output += &format!("push {}\n", reg);
 		self.stack_size += 1;
@@ -96,8 +81,8 @@ impl <I: Iterator<Item = ChildNode>> Generator<I> {
 				let Some(num) = self.variables.get(name) else {
 					return Err(GeneratorError::VariableNotYetDeclared)
 				};
-				self.output += &format!("QWORD [rsp + {}]\n", (self.stack_size - num) * 8);
-				self.push("rax");
+				let offset = format!("QWORD [rsp + {}]", (self.stack_size - num) * 8);
+				self.push(&offset);
 			},
 			NodeType::ExprLiteral(num) => {
 				self.output += &format!("mov rax, {}\n", num);
