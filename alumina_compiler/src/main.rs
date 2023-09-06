@@ -1,4 +1,5 @@
 use std::{fs, process, env};
+use process::Command;
 
 extern crate char_reader;
 
@@ -71,31 +72,39 @@ fn main() -> Result<(), CLIError> {
     fs::create_dir_all("build")?;
     fs::write("build/output.asm", code)?;
 
-    #[cfg(target_family = "unix")]
-    {
-        use process::Command;
-        println!("Building binary...");
-        /*
-            Assembler
-            nasm -felf64 output.asm
-        */
-        Command::new("nasm")
-            .arg("-felf64")
-            .arg("build/output.asm")
-            .spawn()?
-            .wait()?;
+    println!("Building binary...");
+    /* Assembler
+        nasm -f <elf64 | win64> output.asm
+    */
+    Command::new("nasm")
+        .arg(
+            if cfg!(target_family = "windows") {"-fwin64"} else {"-felf64"}
+        )
+        .arg("build/output.asm")
+        .spawn()?
+        .wait()?;
+
+    /* Linker
+    Linux: GNU Linker (ld)
+    Win  : Visual Studio Linker
+    */
+    #[cfg(not(any(target_family = "unix", target_family = "windows")))]
+    panic!("Platform not supported");
     
-        /*
-            Linker
-            ld output.o -o output
-        */
-        Command::new("ld")
-            .arg("-o")
-            .arg("build/output")
-            .arg("build/output.o")
-            .spawn()?
-            .wait()?;    
-    }
+    #[cfg(target_family = "unix")]
+    Command::new("ld")
+        .arg("-o")
+        .arg("build/output")
+        .arg("build/output.o")
+        .spawn()?
+        .wait()?;   
+    #[cfg(target_family = "windows")]
+    Command::new(r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30133\bin\Hostx64\x64\link.exe")
+        .args(["/subsystem:console", "/nodefaultlib", "/entry:_start", "/manifest", "/nologo"])
+        .arg(r".\build\output.obj")
+        .arg(r"/OUT:.\build\output.exe")
+        .spawn()?
+        .wait()?;      
 
     Ok(())
 }

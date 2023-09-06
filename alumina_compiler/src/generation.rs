@@ -1,10 +1,17 @@
 
-/* Minimal program
+/* Minimum req.
+
 global _start
-_start
-	mov rdi, 0
-	mov rax, 60
+section .text
+_start:
+
+linux -:
+	mov rdi (val)
+	mov rax 60
 	syscall
+
+win   -:
+	? ? ?
 */
 
 use std::{collections::HashMap, iter::Peekable};
@@ -45,8 +52,7 @@ impl <I: Iterator<Item = ChildNode>> Generator<I> {
 				Err(err) => return Err(err),
 			}
 		}
-
-		generator.output = String::from("global _start\n_start:\n") + &generator.output + "mov rdi, 0\nmov rax, 60\nsyscall";
+		generator.output = String::from("global _start\nsection .text\n_start:\n") + &generator.output + "mov rdi, 0\nmov rax, 60\nsyscall";
 		
 		// generator.opt();
 
