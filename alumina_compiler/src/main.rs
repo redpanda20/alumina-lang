@@ -57,22 +57,22 @@ fn main() -> Result<(), CLIError> {
         return Err(CLIError::NotEnoughArguments)
     }
 
-    println!("Compiling '{}'...", &args[1]);
+    println!("\x1b[1;32m Compiling \x1b[0m '{}'...", &args[1]);
     let file = fs::File::open(&args[1])?;
 
-    println!("Parsing tokens...");
+    print!("Parsing tokens...\r");
     let tokens = Lexer::tokenize(file)?;
 
-    println!("Building parse tree...");
+    print!("Building parse tree...\r");
     let nodes = Parser::parse(tokens.into_iter())?;
 
-    println!("Generating intermediate code...");
+    print!("Generating intermediate code...\r");
     let code = Generator::generate_program(nodes.into_iter())?;
 
     fs::create_dir_all("build")?;
     fs::write("build/output.asm", code)?;
 
-    println!("Building binary...");
+    print!("Building binary...\r");
     /* Assembler
         nasm -f <elf64 | win64> output.asm
     */
@@ -104,7 +104,9 @@ fn main() -> Result<(), CLIError> {
         .arg(r".\build\output.obj")
         .arg(r"/OUT:.\build\output.exe")
         .spawn()?
-        .wait()?;      
+        .wait()?;    
+    
 
+    println!(" \x1b[1;32m Finished \x1b[0m compiling '{}' successfully", &args[1]);
     Ok(())
 }
