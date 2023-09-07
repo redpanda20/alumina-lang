@@ -2,5 +2,6 @@
 
 members = [
 	"alumina_compiler",
-	"char_reader"
+	"char_reader",
+	"flat_tree"
 ]
