@@ -1,5 +1,4 @@
 use std::{fs, process, env};
-use process::Command;
 
 extern crate char_reader;
 
@@ -11,23 +10,12 @@ use token::Lexer;
 use parser::Parser;
 use generation::Generator;
 
+#[derive(Debug)]
 enum CLIError {
-    NotEnoughArguments,
     IOError(std::io::Error),
     LexerError(token::LexerError),
     ParserError(parser::ParserError),
     CodeGeneratorError(generation::GeneratorError)
-}
-impl std::fmt::Debug for CLIError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NotEnoughArguments => write!(f, "usage: alumina-compiler [file]"),
-            Self::IOError(arg0) => f.debug_tuple("IOError").field(arg0).finish(),
-            Self::LexerError(arg0) => f.debug_tuple("LexerError").field(arg0).finish(),
-            Self::ParserError(arg0) => f.debug_tuple("ParserError").field(arg0).finish(),
-            Self::CodeGeneratorError(arg0) => f.debug_tuple("CodeGeneratorError").field(arg0).finish(),
-        }
-    }
 }
 impl From<std::io::Error> for CLIError {
     fn from(value: std::io::Error) -> Self {
@@ -54,29 +42,32 @@ impl From<generation::GeneratorError> for CLIError {
 fn main() -> Result<(), CLIError> {
     let args: Vec<String> = env::args().collect();
     if args.len() == 1 {
-        return Err(CLIError::NotEnoughArguments)
+        println!("Alumina compiler");
+        println!();
+        println!("Usage: alumina-compiler [FILE]");
+        return Ok(())
     }
 
-    println!("\x1b[1;32m Compiling \x1b[0m '{}'...", &args[1]);
+    print!(" \x1b[1;32m Compiling \x1b[0m '{}'...\n", &args[1]);
     let file = fs::File::open(&args[1])?;
 
-    print!("Parsing tokens...\r");
+    print!("   \x1b[1;34m Parsing \x1b[0m tokens...\r");
     let tokens = Lexer::tokenize(file)?;
 
-    print!("Building parse tree...\r");
+    print!("  \x1b[1;34m Building \x1b[0m parse tree...\r");
     let nodes = Parser::parse(tokens.into_iter())?;
 
-    print!("Generating intermediate code...\r");
+    print!("\x1b[1;34m Generating \x1b[0m intermediate code...\r");
     let code = Generator::generate_program(nodes.into_iter())?;
 
     fs::create_dir_all("build")?;
     fs::write("build/output.asm", code)?;
 
-    print!("Building binary...\r");
+    print!("  \x1b[1;34m Building \x1b[0m binary...\r");
     /* Assembler
         nasm -f <elf64 | win64> output.asm
     */
-    Command::new("nasm")
+    process::Command::new("nasm")
         .arg(
             if cfg!(target_family = "windows") {"-fwin64"} else {"-felf64"}
         )
@@ -92,14 +83,14 @@ fn main() -> Result<(), CLIError> {
     panic!("Platform not supported");
     
     #[cfg(target_family = "unix")]
-    Command::new("ld")
+    process::Command::new("ld")
         .arg("-o")
         .arg("build/output")
         .arg("build/output.o")
         .spawn()?
         .wait()?;   
     #[cfg(target_family = "windows")]
-    Command::new(r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30133\bin\Hostx64\x64\link.exe")
+    process::Command::new(r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30133\bin\Hostx64\x64\link.exe")
         .args(["/subsystem:console", "/nodefaultlib", "/entry:_start", "/manifest", "/nologo"])
         .arg(r".\build\output.obj")
         .arg(r"/OUT:.\build\output.exe")
@@ -107,6 +98,6 @@ fn main() -> Result<(), CLIError> {
         .wait()?;    
     
 
-    println!(" \x1b[1;32m Finished \x1b[0m compiling '{}' successfully", &args[1]);
+    println!("  \x1b[1;32m Finished \x1b[0m compiling '{}' successfully", &args[1]);
     Ok(())
 }

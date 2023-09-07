@@ -92,7 +92,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 				self.input.next();
 				Ok(())
 			},
-			_ => Ok(())
+			_ => Err(ParserError::UnexpectedToken)
 		}
 	}
 
