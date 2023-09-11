@@ -7,6 +7,7 @@ use crate::token::Token;
 pub enum NodeType {
 	StmtFunction(String),
 	StmtAssign(String),
+	StmtReassign(String),
 	ExprIdent(String),
 	ExprLiteral(u32),
 	ExprBinAdd,
@@ -85,7 +86,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		match token {
 			Token::Let => self.parse_assignment(),
 			Token::Exit => self.parse_function(),
-			// Token::Ident(value) => Node::Ident(*value),
+			Token::Ident(_) => self.parse_reassignment(),
 			// Token::IntLiteral(_) => todo!(),
 			// Token::Eq => Node,
 			Token::Sep => {
@@ -150,6 +151,33 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		// Assignment node
 		self.nodes.push(ParentNode {
 			variant: NodeType::StmtAssign(ident_name),
+			left: Some(self.nodes.len() - 1),
+			right: None
+		});
+
+		Ok(())
+	}
+
+	fn parse_reassignment(&mut self) -> Result<(), ParserError> {
+		/* let <Ident> = <expr> */ 
+
+		let ident_name = match self.input.next() {
+			Some(Token::Ident(ident)) => ident,
+			Some(_) => return Err(ParserError::UnexpectedToken),
+			None => return Err(ParserError::EndOfInput)
+		};
+
+		match self.input.next() {
+			Some(Token::Eq) => (),
+			Some(_) => return Err(ParserError::UnexpectedToken),
+			None => return Err(ParserError::EndOfInput)
+		};
+
+		self.parse_expression()?;
+
+		// Assignment node
+		self.nodes.push(ParentNode {
+			variant: NodeType::StmtReassign(ident_name),
 			left: Some(self.nodes.len() - 1),
 			right: None
 		});

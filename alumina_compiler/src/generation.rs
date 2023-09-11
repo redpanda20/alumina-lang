@@ -83,6 +83,12 @@ impl <I: Iterator<Item = ChildNode>> Generator<I> {
 				}
 				self.variables.insert(name.to_owned(), self.stack_size);
 			},
+			NodeType::StmtReassign(name) => {
+				match self.variables.get_mut(name) {
+					Some(var) => *var = self.stack_size,
+					None => return Err(GeneratorError::VariableNotYetDeclared)
+				}
+			},
 			NodeType::ExprIdent(name) => {
 				let Some(num) = self.variables.get(name) else {
 					return Err(GeneratorError::VariableNotYetDeclared)
