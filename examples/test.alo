@@ -1,6 +1,7 @@
-let a = 1
-let b = 2
-if (a) {
-	b = (b + 2) * 3
+let b = 0
+if b {
+	b = b * b;
+} else {
+	b = 1
 }
 exit(b)

@@ -99,7 +99,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 
 			NodeType::StmtFunction(_) => self.generate_function(node)?,
 
-			NodeType::StmtIf => self.generate_conditional(node)?,
+			NodeType::StmtIf(_) => self.generate_conditional(node)?,
 			
 			NodeType::StmtAssign(name) => {
 				if self.variables.iter().any(|(str, _)| str == name) {
@@ -177,7 +177,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 
 	fn generate_conditional(&mut self, node: Node) -> Result<(), GeneratorError> {
 		let label = self.create_label("if");
-		let NodeType::StmtIf = node.variant else {
+		let NodeType::StmtIf(paths) = node.variant else {
 			return Err(GeneratorError::UnexpectedNode)
 		};
 
@@ -191,11 +191,27 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 			}
 			self.generate_node()?
 		}
+		self.generate_node()?;
+		
+		// No else
+		if paths == 0 {
+			self.output += &format!("{}:\n", label);
+			return Ok(())
+		}
+		let label_else = self.create_label("else");
+		
+		self.output += &format!("jmp {}\n", label_else);
+		self.output += &format!("{}:\n", label);
 
-		// Generate closure end
+		while let Some(node) = self.input.peek() {
+			if let NodeType::ClosureEnd = node.variant {
+				break;
+			}
+			self.generate_node()?
+		}
 		self.generate_node()?;
 
-		self.output += &format!("{}:\n", label);
+		self.output += &format!("{}:\n", label_else);
 
 		Ok(())
 	}

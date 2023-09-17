@@ -9,6 +9,7 @@ pub enum Token {
     Exit,
     Let,
     If,
+    Else,
     Ident(String),
     IntLiteral(u32),
     Eq,
@@ -154,10 +155,11 @@ impl <R: io::Read>Lexer<R> {
             }
         }
 
-        self.tokens.push(match literal.as_str() {
+        self.tokens.push(match literal.to_lowercase().as_str() {
             "exit" => Token::Exit,
             "let" => Token::Let,
             "if" => Token::If,
+            "else" => Token::Else,
             _ => Token::Ident(literal)
         });
 

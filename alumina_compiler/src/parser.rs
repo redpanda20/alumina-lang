@@ -10,7 +10,7 @@ pub enum NodeType {
 	StmtFunction(String),
 	StmtAssign(String),
 	StmtReassign(String),
-	StmtIf,
+	StmtIf(usize),
 	ExprIdent(String),
 	ExprLiteral(u32),
 	ExprParen,
@@ -136,8 +136,13 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		Ok(())
 	}
 
+	///	Parses a conditional statement from input
+	/// 
+	/// Expects:
+	/// - if <expr> <closure>
+	/// - if <expr> <closure> else <closure>
+	/// 
 	fn parse_conditional(&mut self) -> Result<(), ParserError> {
-		// if var <closure>
 		match self.input.next() {
 			Some(Token::If) => (),
 			 _ => return Err(ParserError::UnexpectedToken)
@@ -147,7 +152,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		let expr_index = self.nodes.len() - 1;
 
 		self.nodes.push(Node {
-			variant: NodeType::StmtIf,
+			variant: NodeType::StmtIf(0),
 			parent: self.closures.last().copied()
 		});
 		let index = self.nodes.len() - 1;
@@ -156,6 +161,17 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		self.parse_closure()?;
 		let closure_index = self.nodes.len() - 1;
 		self.nodes.get_mut(closure_index).unwrap().parent = Some(index);
+
+		// Else
+		let Some(Token::Else) = self.input.peek() else {
+			return Ok(())
+		};
+		self.input.next().unwrap();
+		self.nodes.get_mut(index).unwrap().variant = NodeType::StmtIf(1);
+
+		self.parse_closure()?;
+		let second_closure_index = self.nodes.len() - 1;
+		self.nodes.get_mut(second_closure_index).unwrap().parent = Some(index);
 
 		Ok(())
 	}
