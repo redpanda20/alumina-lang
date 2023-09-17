@@ -5,6 +5,7 @@ use crate::token::Token;
 
 #[derive(Debug, Clone)]
 pub enum NodeType {
+	// Closure,
 	StmtFunction(String),
 	StmtAssign(String),
 	StmtReassign(String),
@@ -17,33 +18,9 @@ pub enum NodeType {
 }
 
 #[derive(Debug, Clone)]
-struct ParentNode {
-	pub variant: NodeType,
-	pub left: Option<usize>,
-	pub right: Option<usize>
-}
-
-#[derive(Debug, Clone)]
 pub struct ChildNode {
 	pub variant: NodeType,
 	pub parent: Option<usize>,
-}
-
-fn parents_to_children(vec: &Vec<ParentNode>) -> Vec<ChildNode> {
-	let mut output = Vec::with_capacity(vec.len());
-	
-	for (i, parent) in vec.iter().enumerate() {
-		let variant = parent.variant.clone();
-		output.push(ChildNode { variant, parent: None });
-
-		if let Some(index) = parent.left {
-			output.get_mut(index).unwrap().parent = Some(i);
-		}
-		if let Some(index) = parent.right {
-			output.get_mut(index).unwrap().parent = Some(i);
-		}
-	}
-	output
 }
 
 
@@ -55,7 +32,8 @@ pub enum ParserError {
 
 pub struct Parser<I: Iterator<Item = Token>> {
     input: Peekable<I>,
-    nodes: Vec<ParentNode>
+    nodes: Vec<ChildNode>,
+	closures: Vec<usize>
 }
 	
 impl <I: Iterator<Item = Token>> Parser<I> {
@@ -65,7 +43,8 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 
 		let mut parser: Parser<I> = Parser {
 			input,
-			nodes: Vec::new()
+			nodes: Vec::new(),
+			closures: Vec::new()
 		};
 
 		loop {
@@ -76,25 +55,40 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 			}
 		}
 
-		Ok(parents_to_children(&parser.nodes))
+		Ok(parser.nodes)
 	}
 
 	fn parse_node(&mut self) -> Result<(), ParserError> {
-		let Some(token) = self.input.peek() else {
-			return Err(ParserError::EndOfInput)
-		};
-		match token {
-			Token::Let => self.parse_assignment(),
-			Token::Exit => self.parse_function(),
-			Token::Ident(_) => self.parse_reassignment(),
-			// Token::IntLiteral(_) => todo!(),
-			// Token::Eq => Node,
-			Token::Sep => {
+		match self.input.peek() {
+			Some(Token::LBrace) => self.parse_closure(),
+			Some(Token::Let) => self.parse_assignment(),
+			Some(Token::Exit) => self.parse_function(),
+			Some(Token::Ident(_)) => self.parse_reassignment(),
+			Some(Token::Sep) => {
 				self.input.next();
 				Ok(())
 			},
-			_ => Err(ParserError::UnexpectedToken)
+			Some(_) => Err(ParserError::UnexpectedToken),
+			None => Err(ParserError::EndOfInput)
 		}
+	}
+
+	fn parse_closure(&mut self) -> Result<(), ParserError> {
+		match self.input.next() {
+			Some(Token::LBrace) => (),
+			 _ => return Err(ParserError::UnexpectedToken)
+		};
+
+		// Push closure node
+		// Push to self.closure
+
+		//parse
+
+		match self.input.next() {
+			Some(Token::RBrace) => (),
+			 _ => return Err(ParserError::UnexpectedToken)
+		};
+		Ok(())
 	}
 
 	fn parse_function(&mut self) -> Result<(), ParserError> {
@@ -105,25 +99,12 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 			 _ => return Err(ParserError::UnexpectedToken)
 		};
 
-		// let using_paren = match self.input.peek() {
-		// 	Some(Token::LParen) => true,
-		// 	_ => false
-		// };
-
-		self.parse_expression()?;
-
-		// if using_paren {
-		// 		match self.input.next() {
-		// 		Some(Token::RParen) => (),
-		// 		_ => return Err(ParserError::UnexpectedToken)
-		// 	};
-		// }
-
-		self.nodes.push(ParentNode {
+		self.nodes.push(ChildNode {
 			variant: NodeType::StmtFunction(String::from("exit")),
-			left: Some(self.nodes.len() - 1),
-			right: None
+			parent: self.closures.last().copied()
 		});
+	
+		self.parse_expression()?;
 
 		Ok(())
 	}
@@ -145,15 +126,12 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 			 _ => return Err(ParserError::UnexpectedToken)
 		};
 
-		self.parse_expression()?;
-
-
-		// Assignment node
-		self.nodes.push(ParentNode {
+		self.nodes.push(ChildNode {
 			variant: NodeType::StmtAssign(ident_name),
-			left: Some(self.nodes.len() - 1),
-			right: None
+			parent: self.closures.last().copied()
 		});
+
+		self.parse_expression()?;
 
 		Ok(())
 	}
@@ -173,112 +151,75 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 			None => return Err(ParserError::EndOfInput)
 		};
 
-		self.parse_expression()?;
-
-		// Assignment node
-		self.nodes.push(ParentNode {
+		self.nodes.push(ChildNode {
 			variant: NodeType::StmtReassign(ident_name),
-			left: Some(self.nodes.len() - 1),
-			right: None
+			parent: self.closures.last().copied()
 		});
+
+		self.parse_expression()?;
 
 		Ok(())
 	}
 
 	fn parse_expression(&mut self) -> Result<(), ParserError> {
-		// expr = ident | literal | expr
-
-		let mut operators = Vec::new();
+		let mut operators: Vec<NodeType> = Vec::new();
+		let expr_parent = Some(self.nodes.len() - 1);
 
 		#[inline(always)]
-		fn precedence(token: Option<&Token>) -> usize {
-			match token {
-				Some(Token::FSlash) => 2,
-				Some(Token::Star) => 2,
-				Some(Token::Minus) => 1,
-				Some(Token::Plus) => 1,
+		fn precedence(node_type: &NodeType) -> usize {
+			match node_type {
+				NodeType::ExprBinDiv => 2,
+				NodeType::ExprBinMul => 2,
+				NodeType::ExprBinAdd => 1,
+				NodeType::ExprBinSub => 1,
 				_ => 0,
 			}
 		}	
 
-		while let Some(node) = self.input.peek() {
-
-			match node {
-				Token::Ident(name) => self.nodes.push(ParentNode {
-					variant: NodeType::ExprIdent(name.to_owned()), left: None, right: None }),
-
-				Token::IntLiteral(value) => self.nodes.push(ParentNode {
-					variant: NodeType::ExprLiteral(*value), left: None, right: None }),
-
-				token
-				if token == &Token::Plus 
-				|| token == &Token::Minus
-				|| token == &Token::Star
-				|| token == &Token::FSlash => {
-					while precedence(operators.last()) > precedence(Some(token)) {
-						let variant = match token {
-							Token::Plus => NodeType::ExprBinAdd,
-							Token::Minus => NodeType::ExprBinSub,
-							Token::Star => NodeType::ExprBinMul,
-							Token::FSlash => NodeType::ExprBinDiv,
-							_ => unreachable!()
-						};
-						let right = Some(self.nodes.len() - 1);
-						let left = Some({
-							let mut index = self.nodes.len() - 1;
-							loop {
-								let Some(node) = self.nodes.get(index) else {
-									break
-								};
-								match node.left {
-									Some(new_index) => index = new_index,
-									None => break,
-								}
-							}
-							index - 1
-						});
-						self.nodes.push(ParentNode {
-							variant,
-							left,
-							right
-						});
-					}
-					operators.push(token.clone())
-				}
-				// Token::LParen => todo!(),
-				// Token::RParen => todo!(),
-				_ => break
-			}
-
-			self.input.next();
-		}
-
-		while let Some(token) = operators.pop() {
+		while let Some(token) = self.input.peek() {
 			let variant = match token {
+				Token::Ident(name) => NodeType::ExprIdent(name.to_string()),
+				Token::IntLiteral(value) => NodeType::ExprLiteral(*value),
 				Token::Plus => NodeType::ExprBinAdd,
 				Token::Minus => NodeType::ExprBinSub,
 				Token::Star => NodeType::ExprBinMul,
 				Token::FSlash => NodeType::ExprBinDiv,
-				_ => unreachable!()
+				// Token::LParen => todo!(),
+				// Token::RParen => todo!(),
+				_ => break,
 			};
-			let right = Some(self.nodes.len() - 1);
-			let left = Some({
-				let mut index = self.nodes.len() - 1;
-				loop {
-					let Some(node) = self.nodes.get(index) else {
-						break
-					};
-					match node.left {
-						Some(new_index) => index = new_index,
-						None => break,
-					}
+			
+			let parent = expr_parent;
+			let node_precedence = precedence(&variant);
+
+			if node_precedence == 0 {
+				self.nodes.push(ChildNode {
+					variant,
+					parent
+				});	
+				self.input.next();
+				continue;
+			}
+
+			while let Some(stack_variant) = operators.pop() {
+				if node_precedence > precedence(&stack_variant) {
+					operators.push(stack_variant);
+					break;
 				}
-				index - 1
-			});
-			self.nodes.push(ParentNode {
+				self.nodes.push(ChildNode {
+					variant: stack_variant,
+					parent
+				});
+			}
+			operators.push(variant);
+
+			self.input.next();
+		}
+
+		while let Some(variant) = operators.pop() {
+			self.nodes.push(ChildNode {
 				variant,
-				left,
-				right
+				parent: expr_parent
 			});
 		}
 
