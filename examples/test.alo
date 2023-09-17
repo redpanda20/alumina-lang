@@ -1,6 +1,6 @@
 let a = 1
 let b = 2
 if (a) {
-	b = (1 + 2) * 3
+	b = (b + 2) * 3
 }
-exit b
+exit(b)
