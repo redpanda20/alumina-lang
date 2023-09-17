@@ -14,34 +14,39 @@ win   -:
 	? ? ?
 */
 
-use std::{collections::HashMap, iter::Peekable};
+use std::iter::Peekable;
 
-use crate::parser::{ChildNode, NodeType};
+use crate::parser::{Node, NodeType};
 
 #[derive(Debug)]
 pub enum GeneratorError {
 	EndOfInput,
 	VariableAlreadyDeclared,
 	VariableNotYetDeclared,
+	ClosureNotYetOpened,
 	UnexpectedNode
 }
 
-pub struct Generator<I: Iterator<Item = ChildNode>> {
+pub struct Generator<I: Iterator<Item = Node>> {
 	input: Peekable<I>,
-	variables: HashMap<String, usize>,
+	variables: Vec<(String, usize)>,
 	stack_size: usize,
+	label_count: usize,
+	scopes: Vec<usize>,
 	output: String
 }
 
-impl <I: Iterator<Item = ChildNode>> Generator<I> {
+impl <I: Iterator<Item = Node>> Generator<I> {
 	pub fn generate_program(iterator: I) -> Result<String, GeneratorError> {
 
 		let input = iterator.peekable();
 
 		let mut generator = Generator {
 			input,
-			variables: HashMap::new(),
+			variables: Vec::new(),
 			stack_size: 0,
+			label_count: 0,
+			scopes: Vec::new(),
 			output: String::new(),
 		};
 
@@ -54,8 +59,6 @@ impl <I: Iterator<Item = ChildNode>> Generator<I> {
 		}
 		generator.output = String::from("global _start\nsection .text\n_start:\n") + &generator.output + "mov rdi, 0\nmov rax, 60\nsyscall";
 		
-		// generator.opt();
-
 		Ok(generator.output)
 
 	}
@@ -70,27 +73,55 @@ impl <I: Iterator<Item = ChildNode>> Generator<I> {
 		self.stack_size -= 1;
 	}
 
+	fn create_label(&mut self, name: &str) -> String {
+		let label = format!("{}{}", name, self.label_count);
+		self.label_count += 1;
+		label
+	}
+
 	fn generate_node(&mut self) -> Result<(), GeneratorError> {
 		let Some(node) = self.input.next() else {
 			return Err(GeneratorError::EndOfInput)
 		};
 		match &node.variant {
+			NodeType::ClosureStart => {
+				self.scopes.push(self.variables.len())
+			},
+			NodeType::ClosureEnd => {
+				let closure_start = self.scopes.pop()
+					.ok_or(GeneratorError::ClosureNotYetOpened)?;
+				let pop_count = self.variables.len() - closure_start;
+
+				self.output += &format!("add rsp, {}\n", pop_count * 8);
+				self.stack_size -= pop_count;
+				self.variables.truncate(closure_start);	
+			},
+
 			NodeType::StmtFunction(_) => self.generate_function(node)?,
+
+			NodeType::StmtIf => self.generate_conditional(node)?,
 			
 			NodeType::StmtAssign(name) => {
-				if self.variables.contains_key(name) {
+				if self.variables.iter().find(|(str, _)| str == name).is_some() {
 					return Err(GeneratorError::VariableAlreadyDeclared);
 				}
-				self.variables.insert(name.to_owned(), self.stack_size);
+				self.variables.push((name.to_owned(), self.stack_size));
+				self.output.pop();
+				self.output += &format!("	; variable ({}) assigned\n", name);
 			},
 			NodeType::StmtReassign(name) => {
-				match self.variables.get_mut(name) {
-					Some(var) => *var = self.stack_size,
+				self.pop("rax");
+				let num = match self.variables.iter().find(|(str, _)| str == name) {
+					Some(var) => var.1,
 					None => return Err(GeneratorError::VariableNotYetDeclared)
-				}
+				};
+				self.output += &format!(
+					"mov QWORD [rsp + {}], rax\n",
+					(self.stack_size - num) * 8
+				);
 			},
 			NodeType::ExprIdent(name) => {
-				let Some(num) = self.variables.get(name) else {
+				let Some((_, num)) = self.variables.iter().find(|(str, _)| str == name) else {
 					return Err(GeneratorError::VariableNotYetDeclared)
 				};
 				let offset = format!("QWORD [rsp + {}]", (self.stack_size - num) * 8);
@@ -108,7 +139,7 @@ impl <I: Iterator<Item = ChildNode>> Generator<I> {
 		Ok(())
 	}
 
-	fn generate_bin_expr(&mut self, node: ChildNode) -> Result<(), GeneratorError> {
+	fn generate_bin_expr(&mut self, node: Node) -> Result<(), GeneratorError> {
 
 		self.pop("rbx");
 		
@@ -127,7 +158,7 @@ impl <I: Iterator<Item = ChildNode>> Generator<I> {
 		Ok(())
 	}
 
-	fn generate_function(&mut self, node: ChildNode) -> Result<(), GeneratorError> {
+	fn generate_function(&mut self, node: Node) -> Result<(), GeneratorError> {
 		let NodeType::StmtFunction(name) = node.variant else {
 			return Err(GeneratorError::UnexpectedNode)
 		};
@@ -137,6 +168,31 @@ impl <I: Iterator<Item = ChildNode>> Generator<I> {
 			self.output += "mov rax, 60\n";
 			self.output += "syscall\n";
 		}
+
+		Ok(())
+	}
+
+	fn generate_conditional(&mut self, node: Node) -> Result<(), GeneratorError> {
+		let label = self.create_label("if");
+		let NodeType::StmtIf = node.variant else {
+			return Err(GeneratorError::UnexpectedNode)
+		};
+
+		self.pop("rax");
+		self.output += &format!("test rax, rax\n");
+		self.output += &format!("jz {}\n", label);
+
+		while let Some(node) = self.input.peek() {
+			if let NodeType::ClosureEnd = node.variant {
+				break;
+			}
+			self.generate_node()?
+		}
+
+		// Generate closure end
+		self.generate_node()?;
+
+		self.output += &format!("{}:\n", label);
 
 		Ok(())
 	}

@@ -8,6 +8,7 @@ pub enum Token {
     Sep,
     Exit,
     Let,
+    If,
     Ident(String),
     IntLiteral(u32),
     Eq,
@@ -16,7 +17,9 @@ pub enum Token {
     Star,
     FSlash,
     LParen,
-    RParen
+    RParen,
+    LBrace,
+    RBrace
 }
 
 #[derive(Debug)]
@@ -95,6 +98,14 @@ impl <R: io::Read>Lexer<R> {
                 self.tokens.push(Token::RParen);
                 self.input.next();
             },
+            Some('{') => {
+                self.tokens.push(Token::LBrace);
+                self.input.next();
+            },
+            Some('}') => {
+                self.tokens.push(Token::RBrace);
+                self.input.next();
+            },
             Some(';') | Some('\n') => {
                 self.tokens.push(Token::Sep);
                 self.input.next();
@@ -144,11 +155,12 @@ impl <R: io::Read>Lexer<R> {
             }
         }
 
-        match literal.as_str() {
-            "exit" => self.tokens.push(Token::Exit),
-            "let" => self.tokens.push(Token::Let),
-            _ => self.tokens.push(Token::Ident(literal))
-        };
+        self.tokens.push(match literal.as_str() {
+            "exit" => Token::Exit,
+            "let" => Token::Let,
+            "if" => Token::If,
+            _ => Token::Ident(literal)
+        });
 
         Ok(())
     }
