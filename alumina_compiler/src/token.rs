@@ -25,7 +25,7 @@ pub enum Token {
 #[derive(Debug)]
 pub enum LexerError {
     IntParse(std::num::ParseIntError),
-    IOError(std::io::Error),
+    IOError(io::Error),
     UnexpectedCharacter(char),
     EndOfInput
 }
@@ -34,8 +34,8 @@ impl From<std::num::ParseIntError> for LexerError {
         LexerError::IntParse(err)
     }
 }
-impl From<std::io::Error> for LexerError {
-    fn from(err: std::io::Error) -> Self {
+impl From<io::Error> for LexerError {
+    fn from(err: io::Error) -> Self {
         LexerError::IOError(err)
     }
 }
@@ -48,8 +48,7 @@ pub struct Lexer<R: io::Read> {
 impl <R: io::Read>Lexer<R> {
     pub fn tokenize(reader: R) -> Result<Vec<Token>, LexerError> {
 
-        let input = CharReader::new(reader)
-            .into_iter().peekable();
+        let input = CharReader::new(reader).peekable();
 
         let mut lexer = Lexer {
             input,

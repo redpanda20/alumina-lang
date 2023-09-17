@@ -12,30 +12,28 @@ use generation::Generator;
 
 #[derive(Debug)]
 enum CLIError {
-    IOError(std::io::Error),
-    LexerError(token::LexerError),
-    ParserError(parser::ParserError),
-    CodeGeneratorError(generation::GeneratorError)
+    IO(std::io::Error),
+    Lexer(token::LexerError),
+    Parser(parser::ParserError),
+    CodeGenerator(generation::GeneratorError)
 }
 impl From<std::io::Error> for CLIError {
     fn from(value: std::io::Error) -> Self {
-        return CLIError::IOError(value)
+        CLIError::IO(value)
     }
 }
 impl From<token::LexerError> for CLIError {
     fn from(value: token::LexerError) -> Self {
-        return CLIError::LexerError(value)
+        CLIError::Lexer(value)
     }
 }
 impl From<parser::ParserError> for CLIError {
     fn from(value: parser::ParserError) -> Self {
-        return CLIError::ParserError(value)
+        CLIError::Parser(value)
     }
 }
 impl From<generation::GeneratorError> for CLIError {
-    fn from(value: generation::GeneratorError) -> Self {
-        return CLIError::CodeGeneratorError(value)
-    }
+    fn from(value: generation::GeneratorError) -> Self { CLIError::CodeGenerator(value) }
 }
 
 
@@ -48,7 +46,7 @@ fn main() -> Result<(), CLIError> {
         return Ok(())
     }
 
-    print!(" \x1b[1;32m Compiling \x1b[0m '{}'...\n", &args[1]);
+    println!(" \x1b[1;32m Compiling \x1b[0m '{}'...", &args[1]);
     let file = fs::File::open(&args[1])?;
 
     print!("   \x1b[1;34m Parsing \x1b[0m tokens...\r");
@@ -69,7 +67,7 @@ fn main() -> Result<(), CLIError> {
     */
     process::Command::new("nasm")
         .arg(
-            if cfg!(target_family = "windows") {"-fwin64"} else {"-felf64"}
+            if cfg!(target_family = "windows") {r"-fwin64"} else {r"-felf64"}
         )
         .arg("build/output.asm")
         .spawn()?
@@ -77,26 +75,14 @@ fn main() -> Result<(), CLIError> {
 
     /* Linker
     Linux: GNU Linker (ld)
-    Win  : Visual Studio Linker
     */
-    #[cfg(not(any(target_family = "unix", target_family = "windows")))]
-    panic!("Platform not supported");
-    
     #[cfg(target_family = "unix")]
     process::Command::new("ld")
         .arg("-o")
         .arg("build/output")
         .arg("build/output.o")
         .spawn()?
-        .wait()?;   
-    #[cfg(target_family = "windows")]
-    process::Command::new(r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30133\bin\Hostx64\x64\link.exe")
-        .args(["/subsystem:console", "/nodefaultlib", "/entry:_start", "/manifest", "/nologo"])
-        .arg(r".\build\output.obj")
-        .arg(r"/OUT:.\build\output.exe")
-        .spawn()?
-        .wait()?;    
-    
+        .wait()?;
 
     println!("  \x1b[1;32m Finished \x1b[0m compiling '{}' successfully", &args[1]);
     Ok(())

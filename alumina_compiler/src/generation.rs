@@ -102,7 +102,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 			NodeType::StmtIf => self.generate_conditional(node)?,
 			
 			NodeType::StmtAssign(name) => {
-				if self.variables.iter().find(|(str, _)| str == name).is_some() {
+				if self.variables.iter().any(|(str, _)| str == name) {
 					return Err(GeneratorError::VariableAlreadyDeclared);
 				}
 				self.variables.push((name.to_owned(), self.stack_size));
@@ -116,16 +116,16 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 					None => return Err(GeneratorError::VariableNotYetDeclared)
 				};
 				self.output += &format!(
-					"mov QWORD [rsp + {}], rax\n",
-					(self.stack_size - num) * 8
+					r"mov QWORD [rsp + {}], rax{}",
+					(self.stack_size - num) * 8,
+					"\n"
 				);
 			},
 			NodeType::ExprIdent(name) => {
 				let Some((_, num)) = self.variables.iter().find(|(str, _)| str == name) else {
 					return Err(GeneratorError::VariableNotYetDeclared)
 				};
-				let offset = format!("QWORD [rsp + {}]", (self.stack_size - num) * 8);
-				self.push(&offset);
+				self.push(&format!(r"QWORD [rsp + {}]", (self.stack_size - num) * 8));
 			},
 			NodeType::ExprLiteral(num) => {
 				self.output += &format!("mov rax, {}\n", num);
@@ -182,7 +182,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 		};
 
 		self.pop("rax");
-		self.output += &format!("test rax, rax\n");
+		self.output += "test rax, rax\n";
 		self.output += &format!("jz {}\n", label);
 
 		while let Some(node) = self.input.peek() {
