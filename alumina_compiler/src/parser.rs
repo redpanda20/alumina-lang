@@ -13,6 +13,7 @@ pub enum NodeType {
 	StmtIf,
 	ExprIdent(String),
 	ExprLiteral(u32),
+	ExprParen,
 	ExprBinAdd,
 	ExprBinSub,
 	ExprBinMul,
@@ -136,7 +137,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 	}
 
 	fn parse_conditional(&mut self) -> Result<(), ParserError> {
-		// if var (=0) <closure>
+		// if var <closure>
 		match self.input.next() {
 			Some(Token::If) => (),
 			 _ => return Err(ParserError::UnexpectedToken)
@@ -232,41 +233,64 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		}	
 
 		while let Some(token) = self.input.peek() {
+			let parent = self.closures.last().copied();
 			let variant = match token {
 				Token::Ident(name) => NodeType::ExprIdent(name.to_string()),
 				Token::IntLiteral(value) => NodeType::ExprLiteral(*value),
+				Token::LParen => NodeType::ExprParen,
+				Token::RParen => NodeType::ExprParen,
 				Token::Plus => NodeType::ExprBinAdd,
 				Token::Minus => NodeType::ExprBinSub,
 				Token::Star => NodeType::ExprBinMul,
 				Token::FSlash => NodeType::ExprBinDiv,
-				// Token::LParen => todo!(),
-				// Token::RParen => todo!(),
 				_ => break,
 			};
 			
-			let parent = self.closures.last().copied();
-			let node_precedence = precedence(&variant);
-
-			if node_precedence == 0 {
-				self.nodes.push(Node {
-					variant,
-					parent
-				});	
-				self.input.next();
-				continue;
+			match variant {
+				NodeType::ExprParen
+				=> {
+					if let Token::LParen = token {
+						operators.push(NodeType::ExprParen);
+					} else {
+						while let Some(stack_variant) = operators.pop() {
+							if let NodeType::ExprParen = stack_variant {
+								break;
+							}
+							self.nodes.push(Node {
+								variant: stack_variant,
+								parent
+							});
+						}
+						self.nodes.push(Node {
+							variant,
+							parent
+						});
+					}	
+				},
+				NodeType::ExprIdent(_) | NodeType::ExprLiteral(_)
+				=> {
+					self.nodes.push(Node {
+						variant,
+						parent
+					});	
+				},
+				NodeType::ExprBinAdd | NodeType::ExprBinSub |
+				NodeType::ExprBinMul | NodeType::ExprBinDiv
+				=> {
+					while let Some(stack_variant) = operators.pop() {
+						if precedence(&variant) > precedence(&stack_variant) {
+							operators.push(stack_variant);
+							break;
+						}
+						self.nodes.push(Node {
+							variant: stack_variant,
+							parent
+						});
+					}
+					operators.push(variant);		
+				},
+				_ => ()
 			}
-
-			while let Some(stack_variant) = operators.pop() {
-				if node_precedence > precedence(&stack_variant) {
-					operators.push(stack_variant);
-					break;
-				}
-				self.nodes.push(Node {
-					variant: stack_variant,
-					parent
-				});
-			}
-			operators.push(variant);
 
 			self.input.next();
 		}

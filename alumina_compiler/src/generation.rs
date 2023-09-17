@@ -131,6 +131,9 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 				self.output += &format!("mov rax, {}\n", num);
 				self.push("rax");
 			},
+			NodeType::ExprParen => {
+				self.push("rax");
+			}
 			NodeType::ExprBinAdd => self.generate_bin_expr(node)?,
 			NodeType::ExprBinSub => self.generate_bin_expr(node)?,
 			NodeType::ExprBinMul => self.generate_bin_expr(node)?,
