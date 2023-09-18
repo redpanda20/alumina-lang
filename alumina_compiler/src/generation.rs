@@ -23,7 +23,7 @@ pub enum GeneratorError {
 	EndOfInput,
 	VariableAlreadyDeclared(String),
 	VariableNotYetDeclared(String),
-	ClosureNotYetOpened,
+	BlockNotYetOpened,
 	UnexpectedNode(NodeType)
 }
 
@@ -92,29 +92,29 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 		Ok(())
 	}
 
-	fn generate_closure(&mut self) -> Result<(), GeneratorError> {
+	fn generate_block(&mut self) -> Result<(), GeneratorError> {
 		match self.input.next().ok_or(GeneratorError::EndOfInput)?.variant {
-			NodeType::ClosureStart => (),
+			NodeType::BlockStart => (),
 			node_type => return Err(GeneratorError::UnexpectedNode(node_type))
 		};
 		
 		self.scopes.push(self.variables.len());
 
 		while let Some(node) = self.input.peek() {
-			if let NodeType::ClosureEnd = node.variant {
+			if let NodeType::BlockEnd = node.variant {
 				break;
 			}
 			self.generate_node()?;
 		}
 		self.input.next();
 
-		let closure_start = self.scopes.pop()
-			.ok_or(GeneratorError::ClosureNotYetOpened)?;
-		let pop_count = self.variables.len() - closure_start;
+		let block_start = self.scopes.pop()
+			.ok_or(GeneratorError::BlockNotYetOpened)?;
+		let pop_count = self.variables.len() - block_start;
 
 		self.output += &format!("add rsp, {}\n", pop_count * 8);
 		self.stack_size -= pop_count;
-		self.variables.truncate(closure_start);	
+		self.variables.truncate(block_start);	
 
 		Ok(())
 	}
@@ -246,7 +246,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 		self.output += "test rax, rax\n";
 		self.output += &format!("jz {}\n", label);
 
-		self.generate_closure()?;
+		self.generate_block()?;
 		
 		// No else
 		if paths == 0 {
@@ -258,7 +258,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 		self.output += &format!("jmp {}\n", label_else);
 		self.output += &format!("{}:\n", label);
 
-		self.generate_closure()?;
+		self.generate_block()?;
 
 		self.output += &format!("{}:\n", label_else);
 
@@ -271,7 +271,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 	/// 
 	/// - while
 	/// - expr
-	/// - closure
+	/// - block
 	/// 
 	fn generate_loop(&mut self) -> Result<(), GeneratorError> {
 		match self.input.next().ok_or(GeneratorError::EndOfInput)?.variant {
@@ -289,7 +289,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 		self.output += "test rax, rax\n";
 		self.output += &format!("jz {}\n", end);
 
-		self.generate_closure()?;
+		self.generate_block()?;
 
 		self.output += &format!("jmp {}\n", start);
 		self.output += &format!("{}:\n", end);

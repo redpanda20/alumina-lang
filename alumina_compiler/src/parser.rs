@@ -5,8 +5,8 @@ use crate::token::Token;
 
 #[derive(Debug, Clone)]
 pub enum NodeType {
-	ClosureStart,
-	ClosureEnd,
+	BlockStart,
+	BlockEnd,
 	StmtFunction(String),
 	StmtNewVar(String),
 	StmtAssign(String),
@@ -32,14 +32,14 @@ pub struct Node {
 #[derive(Debug)]
 pub enum ParserError {
     EndOfInput,
-	EndOfClosure,
+	EndOfBlock,
 	UnexpectedToken
 }
 
 pub struct Parser<I: Iterator<Item = Token>> {
     input: Peekable<I>,
     nodes: Vec<Node>,
-	closures: Vec<usize>
+	blocks: Vec<usize>
 }
 	
 impl <I: Iterator<Item = Token>> Parser<I> {
@@ -50,7 +50,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		let mut parser: Parser<I> = Parser {
 			input,
 			nodes: Vec::new(),
-			closures: Vec::new()
+			blocks: Vec::new()
 		};
 
 		loop {
@@ -66,36 +66,36 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 
 	fn parse_node(&mut self) -> Result<(), ParserError> {
 		match self.input.peek() {
-			Some(Token::LBrace) => self.parse_closure(),
+			Some(Token::LBrace) => self.parse_block(),
 			Some(Token::Let) => self.parse_assignment(),
 			Some(Token::If) => self.parse_conditional(),
 			Some(Token::While) => self.parse_loop(),
 			Some(Token::Exit) => self.parse_function(),
 			Some(Token::Ident(_)) => self.parse_reassignment(),
 			Some(Token::Sep) => { self.input.next(); Ok(()) },
-			Some(Token::RBrace) => Err(ParserError::EndOfClosure),
+			Some(Token::RBrace) => Err(ParserError::EndOfBlock),
 			Some(_) => Err(ParserError::UnexpectedToken),
 			None => Err(ParserError::EndOfInput)
 		}
 	}
 
-	fn parse_closure(&mut self) -> Result<(), ParserError> {
+	fn parse_block(&mut self) -> Result<(), ParserError> {
 		match self.input.next() {
 			Some(Token::LBrace) => (),
 			 _ => return Err(ParserError::UnexpectedToken)
 		};
 
 		self.nodes.push(Node {
-			variant: NodeType::ClosureStart,
-			parent: self.closures.last().copied()
+			variant: NodeType::BlockStart,
+			parent: self.blocks.last().copied()
 		});
 
-		self.closures.push(self.nodes.len() - 1);
+		self.blocks.push(self.nodes.len() - 1);
 
 		loop {
 			match self.parse_node() {
 				Ok(_) => (),
-				Err(ParserError::EndOfClosure) => break,
+				Err(ParserError::EndOfBlock) => break,
 				Err(err) => return Err(err),
 			}
 		}
@@ -106,11 +106,11 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		};
 
 		self.nodes.push(Node {
-			variant: NodeType::ClosureEnd,
-			parent: self.closures.last().copied()
+			variant: NodeType::BlockEnd,
+			parent: self.blocks.last().copied()
 		});
 
-		self.closures.pop();
+		self.blocks.pop();
 
 		Ok(())
 	}
@@ -132,7 +132,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 
 		self.nodes.push(Node {
 			variant: NodeType::StmtFunction(String::from("exit")),
-			parent: self.closures.last().copied()
+			parent: self.blocks.last().copied()
 		});
 		let index = self.nodes.len() - 1;
 
@@ -145,11 +145,11 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 	///	Parses a conditional statement from input
 	/// 
 	/// Expects:
-	/// - if <expr> <closure>
-	/// - if <expr> <closure> else <closure>
+	/// - if <expr> <block>
+	/// - if <expr> <block> else <block>
 	/// 
 	/// Returns:
-	/// - <if> <expr> <closure>[1/2]
+	/// - <if> <expr> <block>[1/2]
 	/// 
 	fn parse_conditional(&mut self) -> Result<(), ParserError> {
 		match self.input.next() {
@@ -159,14 +159,14 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 
 		self.nodes.push(Node {
 			variant: NodeType::StmtIf(0),
-			parent: self.closures.last().copied()
+			parent: self.blocks.last().copied()
 		});
 		let index = self.nodes.len() - 1;
 
 		self.parse_expression()?;
 		self.nodes.last_mut().unwrap().parent = Some(index);
 
-		self.parse_closure()?;
+		self.parse_block()?;
 		self.nodes.last_mut().unwrap().parent = Some(index);
 
 		// Else
@@ -176,7 +176,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		}
 		self.nodes.get_mut(index).unwrap().variant = NodeType::StmtIf(1);
 
-		self.parse_closure()?;
+		self.parse_block()?;
 		self.nodes.last_mut().unwrap().parent = Some(index);
 
 		Ok(())
@@ -208,7 +208,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 
 		self.nodes.push(Node {
 			variant: NodeType::StmtNewVar(ident_name.clone()),
-			parent: self.closures.last().copied()
+			parent: self.blocks.last().copied()
 		});
 		let index = self.nodes.len() - 1;
  
@@ -221,10 +221,10 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 	/// Parses a loop from the input
 	/// 
 	/// Expects
-	/// - while <expr> <closure>
+	/// - while <expr> <block>
 	/// 
 	/// Returns (unusual)
-	/// - <while> <expr> <closure> 
+	/// - <while> <expr> <block> 
 	/// 
 	fn parse_loop(&mut self) -> Result<(), ParserError> {
 		let Some(Token::While) = self.input.next() else {
@@ -233,14 +233,14 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 
 		self.nodes.push(Node {
 			variant: NodeType::StmtWhile,
-			parent: self.closures.last().copied()
+			parent: self.blocks.last().copied()
 		});
 		let index = self.nodes.len() - 1;
 
 		self.parse_expression()?;
 		self.nodes.last_mut().unwrap().parent = Some(index);
 
-		self.parse_closure()?;
+		self.parse_block()?;
 		self.nodes.last_mut().unwrap().parent = Some(index);
 
 		Ok(())
@@ -271,7 +271,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 
 		self.nodes.push(Node {
 			variant: NodeType::StmtAssign(ident_name),
-			parent: self.closures.last().copied()
+			parent: self.blocks.last().copied()
 		});
 		let index = self.nodes.len() - 1;
 
@@ -296,7 +296,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		}	
 
 		while let Some(token) = self.input.peek() {
-			let parent = self.closures.last().copied();
+			let parent = self.blocks.last().copied();
 			let variant = match token {
 				Token::Ident(name) => NodeType::ExprIdent(name.to_string()),
 				Token::IntLiteral(value) => NodeType::ExprLiteral(*value),
@@ -361,7 +361,7 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		while let Some(variant) = operators.pop() {
 			self.nodes.push(Node {
 				variant,
-				parent: self.closures.last().copied()
+				parent: self.blocks.last().copied()
 			});
 		}
 
