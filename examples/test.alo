@@ -1,7 +1,5 @@
-let b = 0
-if b {
-	b = b * b;
-} else {
-	b = 1
+let b = 5
+while b {
+	b = b - 1
 }
 exit(b)

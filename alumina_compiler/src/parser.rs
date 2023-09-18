@@ -8,9 +8,11 @@ pub enum NodeType {
 	ClosureStart,
 	ClosureEnd,
 	StmtFunction(String),
+	StmtNewVar(String),
 	StmtAssign(String),
-	StmtReassign(String),
+	// StmtReassign(String),
 	StmtIf(usize),
+	StmtWhile,
 	ExprIdent(String),
 	ExprLiteral(u32),
 	ExprParen,
@@ -67,12 +69,10 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 			Some(Token::LBrace) => self.parse_closure(),
 			Some(Token::Let) => self.parse_assignment(),
 			Some(Token::If) => self.parse_conditional(),
+			Some(Token::While) => self.parse_loop(),
 			Some(Token::Exit) => self.parse_function(),
 			Some(Token::Ident(_)) => self.parse_reassignment(),
-			Some(Token::Sep) => {
-				self.input.next();
-				Ok(())
-			},
+			Some(Token::Sep) => { self.input.next(); Ok(()) },
 			Some(Token::RBrace) => Err(ParserError::EndOfClosure),
 			Some(_) => Err(ParserError::UnexpectedToken),
 			None => Err(ParserError::EndOfInput)
@@ -115,23 +115,29 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		Ok(())
 	}
 
+	/// Parses a function
+	/// Currently only handles hardcoded exit
+	/// 
+	/// Expects:
+	/// <ident> <expr>[1+]
+	/// 
+	/// Returns:
+	/// <function> <expr>
 	fn parse_function(&mut self) -> Result<(), ParserError> {
-		/* return <expr> */
 
 		match self.input.next() {
 			Some(Token::Exit) => (),
 			 _ => return Err(ParserError::UnexpectedToken)
 		};
 
-		self.parse_expression()?;
-		let expr_index = self.nodes.len() - 1;
-
 		self.nodes.push(Node {
 			variant: NodeType::StmtFunction(String::from("exit")),
 			parent: self.closures.last().copied()
 		});
 		let index = self.nodes.len() - 1;
-		self.nodes.get_mut(expr_index).unwrap().parent = Some(index);
+
+		self.parse_expression()?;
+		self.nodes.last_mut().unwrap().parent = Some(index);
 
 		Ok(())
 	}
@@ -142,42 +148,49 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 	/// - if <expr> <closure>
 	/// - if <expr> <closure> else <closure>
 	/// 
+	/// Returns:
+	/// - <if> <expr> <closure>[1/2]
+	/// 
 	fn parse_conditional(&mut self) -> Result<(), ParserError> {
 		match self.input.next() {
 			Some(Token::If) => (),
 			 _ => return Err(ParserError::UnexpectedToken)
 		};
 
-		self.parse_expression()?;
-		let expr_index = self.nodes.len() - 1;
-
 		self.nodes.push(Node {
 			variant: NodeType::StmtIf(0),
 			parent: self.closures.last().copied()
 		});
 		let index = self.nodes.len() - 1;
-		self.nodes.get_mut(expr_index).unwrap().parent = Some(index);
+
+		self.parse_expression()?;
+		self.nodes.last_mut().unwrap().parent = Some(index);
 
 		self.parse_closure()?;
-		let closure_index = self.nodes.len() - 1;
-		self.nodes.get_mut(closure_index).unwrap().parent = Some(index);
+		self.nodes.last_mut().unwrap().parent = Some(index);
 
 		// Else
-		let Some(Token::Else) = self.input.peek() else {
-			return Ok(())
-		};
-		self.input.next().unwrap();
+		match self.input.next_if_eq(&Token::Else) {
+			None => return Ok(()),
+			_ => ()
+		}
 		self.nodes.get_mut(index).unwrap().variant = NodeType::StmtIf(1);
 
 		self.parse_closure()?;
-		let second_closure_index = self.nodes.len() - 1;
-		self.nodes.get_mut(second_closure_index).unwrap().parent = Some(index);
+		self.nodes.last_mut().unwrap().parent = Some(index);
 
 		Ok(())
 	}
 
+	/// Parses an assignement expression
+	/// 
+	/// Expects:
+	/// let <ident> = <expr>
+	/// 
+	/// Returns:
+	/// - StmtNewVar(<ident>)
+	/// - Expr
 	fn parse_assignment(&mut self) -> Result<(), ParserError> {
-		/* let <var> = <expr> */ 
 
 		match self.input.next() {
 			Some(Token::Let) => (),
@@ -193,19 +206,54 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 			 _ => return Err(ParserError::UnexpectedToken)
 		};
 
-		self.parse_expression()?;
-		let expr_index = self.nodes.len() - 1;
-
 		self.nodes.push(Node {
-			variant: NodeType::StmtAssign(ident_name),
+			variant: NodeType::StmtNewVar(ident_name.clone()),
 			parent: self.closures.last().copied()
 		});
 		let index = self.nodes.len() - 1;
-		self.nodes.get_mut(expr_index).unwrap().parent = Some(index);
+ 
+		self.parse_expression()?;
+		self.nodes.last_mut().unwrap().parent = Some(index);
 
 		Ok(())
 	}
 
+	/// Parses a loop from the input
+	/// 
+	/// Expects
+	/// - while <expr> <closure>
+	/// 
+	/// Returns (unusual)
+	/// - <while> <expr> <closure> 
+	/// 
+	fn parse_loop(&mut self) -> Result<(), ParserError> {
+		let Some(Token::While) = self.input.next() else {
+			return Err(ParserError::UnexpectedToken)
+		};
+
+		self.nodes.push(Node {
+			variant: NodeType::StmtWhile,
+			parent: self.closures.last().copied()
+		});
+		let index = self.nodes.len() - 1;
+
+		self.parse_expression()?;
+		self.nodes.last_mut().unwrap().parent = Some(index);
+
+		self.parse_closure()?;
+		self.nodes.last_mut().unwrap().parent = Some(index);
+
+		Ok(())
+	}
+
+	/// Parses reassignment expression
+	/// 
+	/// Expects:
+	/// <ident> = <expr>
+	/// 
+	/// Returns
+	/// - <StmtAssign>
+	/// - <Expr>
 	fn parse_reassignment(&mut self) -> Result<(), ParserError> {
 		/* let <Ident> = <expr> */ 
 
@@ -221,15 +269,14 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 			None => return Err(ParserError::EndOfInput)
 		};
 
-		self.parse_expression()?;
-		let expr_index = self.nodes.len() - 1;
-
 		self.nodes.push(Node {
-			variant: NodeType::StmtReassign(ident_name),
+			variant: NodeType::StmtAssign(ident_name),
 			parent: self.closures.last().copied()
 		});
 		let index = self.nodes.len() - 1;
-		self.nodes.get_mut(expr_index).unwrap().parent = Some(index);
+
+		self.parse_expression()?;
+		self.nodes.last_mut().unwrap().parent = Some(index);
 
 		Ok(())
 	}

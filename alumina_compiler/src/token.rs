@@ -10,6 +10,7 @@ pub enum Token {
     Let,
     If,
     Else,
+    While,
     Ident(String),
     IntLiteral(u32),
     Eq,
@@ -160,6 +161,7 @@ impl <R: io::Read>Lexer<R> {
             "let" => Token::Let,
             "if" => Token::If,
             "else" => Token::Else,
+            "while" => Token::While,
             _ => Token::Ident(literal)
         });
 
