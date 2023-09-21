@@ -33,7 +33,15 @@ pub struct Node {
 	pub variant: NodeType,
 	pub parent: Option<usize>,
 }
-
+impl std::fmt::Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		if let Some(parent) = self.parent {
+			write!(f, "{:?}, Parent: {parent}", self.variant)
+		} else {
+			write!(f, "{:?}", self.variant)
+		}
+    }
+}
 
 #[derive(Debug)]
 pub enum ParserError {

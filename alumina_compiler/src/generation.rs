@@ -218,6 +218,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 
 	fn generate_conditional_jump(&mut self, label: &String) -> Result<(), GeneratorError> {
 
+		// https://www.philadelphia.edu.jo/academics/qhamarsheh/uploads/Lecture 18 Conditional Jumps Instructions.pdf
 		self.generate_expr()?;
 
 		let node = self.input.next().ok_or(GeneratorError::EndOfInput)?;

@@ -52,32 +52,33 @@ impl From<io::Error> for LexerError {
 
 pub struct Lexer<R: io::Read> {
     input: Peekable<CharReader<R>>,
-    tokens: Vec<Token>
 }
 
 impl <R: io::Read>Lexer<R> {
+    
+    pub fn new(reader: R) -> Lexer<R> {
+        let input = CharReader::new(reader).peekable();
+        Lexer { input }
+    }
+
     pub fn tokenize(reader: R) -> Result<Vec<Token>, LexerError> {
 
-        let input = CharReader::new(reader).peekable();
-
-        let mut lexer = Lexer {
-            input,
-            tokens: Vec::new()
-        };
+        let mut lexer = Lexer::new(reader);
+        let mut tokens = Vec::new();
 
         loop {
             match lexer.parse_token() {
-                Ok(_) => (),
+                Ok(token) => tokens.push(token),
                 Err(LexerError::EndOfInput) => break,
                 Err(err) => return Err(err)
             }
         }
 
-        Ok(lexer.tokens)
+        Ok(tokens)
     }
 
 
-    fn parse_token(&mut self) -> Result<(), LexerError> {
+    fn parse_token(&mut self) -> Result<Token, LexerError> {
         let token = match self.input.next() {
             Some('!') => match self.input.next_if_eq(&'=') {
                 None => Token::Not,
@@ -106,12 +107,21 @@ impl <R: io::Read>Lexer<R> {
             Some(';') | Some('\n') => Token::Sep,
             Some(ch) if ch.is_numeric() => self.parse_int(ch)?,
             Some(ch) if ch.is_alphabetic() => self.parse_literal(ch)?,
-            Some(ch) if ch.is_whitespace() => return Ok(()),
+            Some(ch) if ch.is_whitespace() => self.parse_whitespace()?,
             Some(ch) => return Err(LexerError::UnexpectedCharacter(ch)),
             None => return Err(LexerError::EndOfInput)
         };
-        self.tokens.push(token);
-        Ok(())
+        Ok(token)
+    }
+
+    fn parse_whitespace(&mut self) -> Result<Token, LexerError> {
+        loop {
+            match self.input.next_if(|ch| ch.is_whitespace()) {
+                None => break,
+                _ => ()
+            }
+        }
+        self.parse_token()
     }
 
     fn parse_int(&mut self, first_char: char) -> Result<Token, LexerError> {
@@ -151,4 +161,11 @@ impl <R: io::Read>Lexer<R> {
         })
     }
 
+}
+impl<R: std::io::Read> Iterator for Lexer<R> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Token> {
+        self.parse_token().ok()
+    }
 }

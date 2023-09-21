@@ -44,24 +44,31 @@ fn main() -> Result<(), CLIError> {
         println!();
         println!("Usage: alumina-compiler [FILE] [options]?");
         println!("Options:");
-        println!("--tokens");
-        println!("--parse-tree");
+        println!("  -tokens");
+        println!("  -parse-tree");
         return Ok(())
     }
-
+    
     println!(" \x1b[1;32m Compiling \x1b[0m '{}'...", &args[1]);
     let file = fs::File::open(&args[1])?;
 
-    print!("   \x1b[1;34m Parsing \x1b[0m tokens...\r");
-    let tokens = Lexer::tokenize(file)?;
-    if args.iter().any(|i| i == "--tokens") {
-        println!("{:#?}", tokens);
+    let lexer;
+    if args.iter().any(|i| i == "-tokens") {
+        let tokens = Lexer::tokenize(file)?;
+        println!("{tokens:#?}");
+        return Ok(());
+    } else {
+        print!("   \x1b[1;34m Parsing \x1b[0m tokens...\r");
+        lexer = Lexer::new(file);    
     }
 
     print!("  \x1b[1;34m Building \x1b[0m parse tree...\r");
-    let nodes = Parser::parse(tokens.into_iter())?;
-    if args.iter().any(|i| i == "--parse-tree") {
-        println!("{:#?}", nodes);
+    let nodes = Parser::parse(lexer)?;
+    if args.iter().any(|i| i == "-parse-tree") {
+        for (i, node) in nodes.iter().enumerate() {
+            println!("{i:<6} {node}");
+        }
+        return Ok(())
     }
 
     print!("\x1b[1;34m Generating \x1b[0m intermediate code...\r");
