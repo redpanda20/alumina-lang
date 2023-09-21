@@ -1,5 +1,6 @@
 use std::io;
 use std::iter::Peekable;
+use std::sync::Arc;
 
 use char_reader::CharReader;
 
@@ -11,9 +12,16 @@ pub enum Token {
     If,
     Else,
     While,
-    Ident(String),
+    Ident(Arc<str>),
     IntLiteral(u32),
-    Eq,
+    Not,
+    NotEqual,
+    Equal,
+    EqualEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
     Plus,
     Minus,
     Star,
@@ -70,65 +78,44 @@ impl <R: io::Read>Lexer<R> {
 
 
     fn parse_token(&mut self) -> Result<(), LexerError> {
-        match self.input.peek() {
-            Some('=') => {
-                self.tokens.push(Token::Eq);
-                self.input.next();
-            },
-            Some('+') => {
-                self.tokens.push(Token::Plus);
-                self.input.next();
-            },
-             Some('-') => {
-                self.tokens.push(Token::Minus);
-                self.input.next();
-            },
-            Some('*') => {
-                self.tokens.push(Token::Star);
-                self.input.next();
-            },
-            Some('/') => {
-                self.tokens.push(Token::FSlash);
-                self.input.next();
-            },
-            Some('(') => {
-                self.tokens.push(Token::LParen);
-                self.input.next();
-            },
-            Some(')') => {
-                self.tokens.push(Token::RParen);
-                self.input.next();
-            },
-            Some('{') => {
-                self.tokens.push(Token::LBrace);
-                self.input.next();
-            },
-            Some('}') => {
-                self.tokens.push(Token::RBrace);
-                self.input.next();
-            },
-            Some(';') | Some('\n') => {
-                self.tokens.push(Token::Sep);
-                self.input.next();
-            },
-            Some(ch) if ch.is_numeric() => {
-                self.parse_int()?;
-            },
-            Some(ch) if ch.is_alphabetic() => {
-                self.parse_literal()?;
-            },
-            Some(ch) if ch.is_whitespace() => {
-                self.input.next();
+        let token = match self.input.next() {
+            Some('!') => match self.input.next_if_eq(&'=') {
+                None => Token::Not,
+                Some(_) => Token::NotEqual
             }
-            Some(ch) => return Err(LexerError::UnexpectedCharacter(*ch)),
+            Some('=') => match self.input.next_if_eq(&'=') {
+                None => Token::Equal,
+                Some(_) => Token::EqualEqual
+            },
+            Some('>') => match self.input.next_if_eq(&'=') {
+                None => Token::Greater,
+                Some(_) => Token::GreaterEqual
+            },
+            Some('<') => match self.input.next_if_eq(&'=') {
+                None => Token::Less,
+                Some(_) => Token::LessEqual
+            },
+            Some('+') => Token::Plus,
+            Some('-') => Token::Minus,
+            Some('*') => Token::Star,
+            Some('/') => Token::FSlash,
+            Some('(') => Token::LParen,
+            Some(')') => Token::RParen,
+            Some('{') => Token::LBrace,
+            Some('}') => Token::RBrace,
+            Some(';') | Some('\n') => Token::Sep,
+            Some(ch) if ch.is_numeric() => self.parse_int(ch)?,
+            Some(ch) if ch.is_alphabetic() => self.parse_literal(ch)?,
+            Some(ch) if ch.is_whitespace() => return Ok(()),
+            Some(ch) => return Err(LexerError::UnexpectedCharacter(ch)),
             None => return Err(LexerError::EndOfInput)
-        }
-
+        };
+        self.tokens.push(token);
         Ok(())
     }
 
-    fn parse_int(&mut self) -> Result<(), LexerError> {
-        let mut num = String::new();
+    fn parse_int(&mut self, first_char: char) -> Result<Token, LexerError> {
+        let mut num = first_char.to_string();
         loop {
             match self.input.peek() {
                 Some(ch) if ch.is_numeric() => {
@@ -139,13 +126,11 @@ impl <R: io::Read>Lexer<R> {
             }
         }
 
-        self.tokens.push(Token::IntLiteral(num.parse::<u32>()?));
-
-        Ok(())
+        Ok(Token::IntLiteral(num.parse::<u32>()?))
     }
 
-    fn parse_literal(&mut self) -> Result<(), LexerError> {
-        let mut literal = String::new();
+    fn parse_literal(&mut self, first_char: char) -> Result<Token, LexerError> {
+        let mut literal = first_char.to_string();
         loop {
             match self.input.peek() {
                 Some(ch) if ch.is_alphanumeric() => {
@@ -156,16 +141,14 @@ impl <R: io::Read>Lexer<R> {
             }
         }
 
-        self.tokens.push(match literal.to_lowercase().as_str() {
+        Ok(match literal.to_lowercase().as_str() {
             "exit" => Token::Exit,
             "let" => Token::Let,
             "if" => Token::If,
             "else" => Token::Else,
             "while" => Token::While,
-            _ => Token::Ident(literal)
-        });
-
-        Ok(())
+            _ => Token::Ident(literal.into()),
+        })
     }
 
 }

@@ -42,7 +42,10 @@ fn main() -> Result<(), CLIError> {
     if args.len() == 1 {
         println!("Alumina compiler");
         println!();
-        println!("Usage: alumina-compiler [FILE]");
+        println!("Usage: alumina-compiler [FILE] [options]?");
+        println!("Options:");
+        println!("--tokens");
+        println!("--parse-tree");
         return Ok(())
     }
 
@@ -51,9 +54,15 @@ fn main() -> Result<(), CLIError> {
 
     print!("   \x1b[1;34m Parsing \x1b[0m tokens...\r");
     let tokens = Lexer::tokenize(file)?;
+    if args.iter().any(|i| i == "--tokens") {
+        println!("{:#?}", tokens);
+    }
 
     print!("  \x1b[1;34m Building \x1b[0m parse tree...\r");
     let nodes = Parser::parse(tokens.into_iter())?;
+    if args.iter().any(|i| i == "--parse-tree") {
+        println!("{:#?}", nodes);
+    }
 
     print!("\x1b[1;34m Generating \x1b[0m intermediate code...\r");
     let code = Generator::generate_program(nodes.into_iter())?;

@@ -19,7 +19,13 @@ pub enum NodeType {
 	ExprBinAdd,
 	ExprBinSub,
 	ExprBinMul,
-	ExprBinDiv
+	ExprBinDiv,
+	ExprEqual,
+	ExprNotEqual,
+	ExprGreater,
+	ExprLessEqual,
+	ExprLess,
+	ExprGreaterEqual
 }
 
 #[derive(Debug, Clone)]
@@ -202,12 +208,12 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 			.and_then(|token| if let Token::Ident(value) = token { Ok(value) } else { Err(ParserError::EndOfInput) })?;
 
 		match self.input.next() {
-			Some(Token::Eq) => (),
+			Some(Token::Equal) => (),
 			 _ => return Err(ParserError::UnexpectedToken)
 		};
 
 		self.nodes.push(Node {
-			variant: NodeType::StmtNewVar(ident_name.clone()),
+			variant: NodeType::StmtNewVar(ident_name.to_string()),
 			parent: self.blocks.last().copied()
 		});
 		let index = self.nodes.len() - 1;
@@ -264,13 +270,13 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		};
 
 		match self.input.next() {
-			Some(Token::Eq) => (),
+			Some(Token::Equal) => (),
 			Some(_) => return Err(ParserError::UnexpectedToken),
 			None => return Err(ParserError::EndOfInput)
 		};
 
 		self.nodes.push(Node {
-			variant: NodeType::StmtAssign(ident_name),
+			variant: NodeType::StmtAssign(ident_name.to_string()),
 			parent: self.blocks.last().copied()
 		});
 		let index = self.nodes.len() - 1;
@@ -287,6 +293,12 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 		#[inline(always)]
 		fn precedence(node_type: &NodeType) -> usize {
 			match node_type {
+				NodeType::ExprLess => 3,
+				NodeType::ExprGreaterEqual => 3,
+				NodeType::ExprLessEqual => 3,
+				NodeType::ExprGreater => 3,
+				NodeType::ExprNotEqual => 3,
+				NodeType::ExprEqual => 3,
 				NodeType::ExprBinDiv => 2,
 				NodeType::ExprBinMul => 2,
 				NodeType::ExprBinAdd => 1,
@@ -306,6 +318,12 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 				Token::Minus => NodeType::ExprBinSub,
 				Token::Star => NodeType::ExprBinMul,
 				Token::FSlash => NodeType::ExprBinDiv,
+				Token::NotEqual => NodeType::ExprNotEqual,
+				Token::EqualEqual => NodeType::ExprEqual,
+				Token::Greater => NodeType::ExprGreater,
+				Token::LessEqual => NodeType::ExprLessEqual,
+				Token::Less => NodeType::ExprLess,
+				Token::GreaterEqual => NodeType::ExprGreaterEqual,
 				_ => break,
 			};
 			
@@ -338,7 +356,10 @@ impl <I: Iterator<Item = Token>> Parser<I> {
 					});	
 				},
 				NodeType::ExprBinAdd | NodeType::ExprBinSub |
-				NodeType::ExprBinMul | NodeType::ExprBinDiv
+				NodeType::ExprBinMul | NodeType::ExprBinDiv |
+				NodeType::ExprEqual  | NodeType::ExprGreater|
+				NodeType::ExprLessEqual | NodeType::ExprNotEqual|
+				NodeType::ExprLess | NodeType::ExprGreaterEqual
 				=> {
 					while let Some(stack_variant) = operators.pop() {
 						if precedence(&variant) > precedence(&stack_variant) {

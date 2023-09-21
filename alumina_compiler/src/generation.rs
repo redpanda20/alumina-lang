@@ -208,10 +208,38 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 			NodeType::ExprBinSub => "sub rax, rbx\n",
 			NodeType::ExprBinMul => "mul rbx\n",
 			NodeType::ExprBinDiv => "div rbx\n",
-			node_type => return Err(GeneratorError::UnexpectedNode(node_type))
+			node_type => unreachable!("Attempted to generate binary expression with {:?}", node_type)
 		};
 
 		self.push("rax");
+
+		Ok(())
+	}
+
+	fn generate_conditional_jump(&mut self, label: &String) -> Result<(), GeneratorError> {
+
+		self.generate_expr()?;
+
+		let node = self.input.next().ok_or(GeneratorError::EndOfInput)?;
+
+		self.pop("rbx");
+		
+		self.pop("rax");
+
+		self.output += "cmp rax, rbx\n";
+
+		// Follow operations are inverted for usage as expected
+		self.output += &match node.variant {
+			NodeType::ExprNotEqual => format!("je {label}\n"),
+			NodeType::ExprEqual => format!("jne {label}\n"),
+			NodeType::ExprGreater => format!("jna {label}\n"),
+			NodeType::ExprGreaterEqual => format!("jnae {label}\n"),
+			NodeType::ExprLess => format!("jnb {label}\n"),
+			NodeType::ExprLessEqual => format!("jnbe {label}\n"),
+			node_type => return Err(GeneratorError::UnexpectedNode(node_type)),
+		};
+		
+		// self.output += &format!("jz {}\n", label);
 
 		Ok(())
 	}
@@ -240,11 +268,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 		};
 		let label = self.create_label("if");
 
-		self.generate_expr()?;
-		self.pop("rax");
-		
-		self.output += "test rax, rax\n";
-		self.output += &format!("jz {}\n", label);
+		self.generate_conditional_jump(&label)?;
 
 		self.generate_block()?;
 		
@@ -283,11 +307,7 @@ impl <I: Iterator<Item = Node>> Generator<I> {
 		let end = self.create_label("loopend");
 
 		self.output += &format!("{}:\n", start);
-		self.generate_expr()?;
-
-		self.pop("rax");
-		self.output += "test rax, rax\n";
-		self.output += &format!("jz {}\n", end);
+		self.generate_conditional_jump(&end)?;
 
 		self.generate_block()?;
 
