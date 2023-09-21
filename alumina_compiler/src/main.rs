@@ -52,19 +52,22 @@ fn main() -> Result<(), CLIError> {
     println!(" \x1b[1;32m Compiling \x1b[0m '{}'...", &args[1]);
     let file = fs::File::open(&args[1])?;
 
+    print!("   \x1b[1;34m Parsing \x1b[0m tokens...\r");
     let lexer;
     if args.iter().any(|i| i == "-tokens") {
-        let tokens = Lexer::tokenize(file)?;
-        println!("{tokens:#?}");
+        println!("");
+        for token in Lexer::tokenize(file)? {
+            println!("{token:?}")
+        }
         return Ok(());
     } else {
-        print!("   \x1b[1;34m Parsing \x1b[0m tokens...\r");
         lexer = Lexer::new(file);    
     }
 
     print!("  \x1b[1;34m Building \x1b[0m parse tree...\r");
     let nodes = Parser::parse(lexer)?;
     if args.iter().any(|i| i == "-parse-tree") {
+        println!("");
         for (i, node) in nodes.iter().enumerate() {
             println!("{i:<6} {node}");
         }
